@@ -1,3 +1,5 @@
+pub mod json;
+
 use std::{marker::PhantomData, rc::Rc};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -383,6 +385,42 @@ pub fn many1<I, O, P: Clone>(parser: P) -> impl Parser<I, Vec<O>> + Clone
     chains(parser.clone().to_vec(), many(parser))
 }
 
+pub fn many1_sep<I, O, P: Clone, N, S>(parser: P, sep: S) -> impl Parser<I, Vec<O>> + Clone
+    where P: Parser<I, O>, S: Parser<I, N>
+{
+    chains(parser.clone().to_vec(), many(parser.preceded_by(sep)))
+}
+
+struct Default<P, D> {
+    parser: P,
+    default: D
+}
+
+impl<I, O, P, D> Parser<I, O> for Default<P, D>
+    where P: Parser<I, O>, D: Fn() -> O 
+{
+    fn parse(&self, input: &[I], position: usize) -> ParseResult<O> {
+        let result = self.parser.parse(input, position);
+        if result.is_ok() {
+            result
+        } else {
+            Ok(ParseOutput::new((self.default)(), position))
+        }
+    }
+}
+
+pub fn default<I, O, P, D>(parser: P, default: D) -> impl Parser<I, O> + Clone
+    where P: Parser<I, O>, D: Fn() -> O
+{
+    Rc::new(Default{parser,default})
+}
+
+pub fn many_sep<I, O, P: Clone, N, S>(parser: P, sep: S) -> impl Parser<I, Vec<O>> + Clone
+    where P: Parser<I, O>, S: Parser<I, N>
+{
+    default(many1_sep(parser, sep), Vec::new)
+}
+
 #[derive(Clone)]
 struct Or<F, S> {
     first: F,
@@ -445,6 +483,20 @@ pub fn string<S: AsRef<str>>(s: S) -> impl Parser<char, Vec<char>> + Clone {
     eqs(s.as_ref().chars().collect())
 }
 
+impl<I, O, F> Parser<I, O> for F
+    where F: Fn(&[I], usize) -> ParseResult<O>
+{
+    fn parse(&self, input: &[I], position: usize) -> ParseResult<O> {
+        self(input, position)
+    }
+}
+
+impl Parser<char, char> for char {
+    fn parse(&self, input: &[char], position: usize) -> ParseResult<char> {
+        eq(*self).parse(input, position)
+    }
+}
+
 pub fn parse<I, O>(input: &[I], parser: impl Parser<I, O>) -> ParseResult<O> {
     parser.parse(input, 0)
 }
@@ -454,8 +506,16 @@ pub fn parse_str<S: AsRef<str>, O>(input: S, parser: impl Parser<char, O>) -> Pa
     parse(&input, parser)
 }
 
-pub fn whitespace() -> impl Parser<char, char> + Clone {
-    satisfy(char::is_whitespace)
+pub fn whitespace(input: &[char], position: usize) -> ParseResult<char> {
+    if let Some(&c) = input.get(position) {
+        if c.is_whitespace() {
+            Ok(ParseOutput::new(c, position + 1))
+        } else {
+            Err(ParseError::NoMatch(position))
+        }
+    } else {
+        Err(ParseError::EndOfInput)
+    }
 }
 
 #[cfg(test)]
@@ -481,7 +541,7 @@ mod tests {
     #[test]
     fn one_of_succeeds() {
         let s = "  o ";
-        let aeiou = one_of_str("aeiou").surrounded_by(whitespace().many());
+        let aeiou = one_of_str("aeiou").surrounded_by(whitespace.many());
         let r = parse_str(s, aeiou);
         assert_eq!(r, Ok(ParseOutput::new('o', s.len())))
     }
@@ -489,7 +549,7 @@ mod tests {
     #[test]
     fn first_succeeds() {
         let s = "e   ";
-        let e = eq('e').followed_by(whitespace().many()).end_of_input();
+        let e = eq('e').followed_by(whitespace.many()).end_of_input();
         let r = parse_str(s, e);
         assert_eq!(r, Ok(ParseOutput::new('e', s.len())))
     }
@@ -505,8 +565,8 @@ mod tests {
     #[test]
     fn or_succeeds() {
         let s = "  oea ";
-        let aeo = or!(eq('a'), eq('e'), eq('o'));
-        let p = aeo.many().surrounded_by(whitespace().many()).end_of_input().to_string();
+        let aeo = or!('a', 'e', 'o');
+        let p = aeo.many().surrounded_by(whitespace.many()).end_of_input().to_string();
         let r = parse_str(s, p);
         assert_eq!(r, Ok(ParseOutput::new("oea".to_string(), s.len())))
     }
@@ -514,8 +574,17 @@ mod tests {
     #[test]
     fn void_succeeds() {
         let s = "FOO xyz";
-        let p = void!(string("FOO"), whitespace().many1()).preceding(many1(one_of_str("xyz"))).end_of_input().to_string();
+        let p = void!(string("FOO"), whitespace.many1()).preceding(many1(one_of_str("xyz"))).end_of_input().to_string();
         let r = parse_str(s, p);
         assert_eq!(r, Ok(ParseOutput::new("xyz".to_string(), 7)));
+    }
+
+    #[test]
+    fn many_sep_succeeds_with_one() {
+        let m = one_of_str("aeo");
+        let sep = ',';
+        let p = many_sep(m, sep).to_string();
+        let r = parse_str("a", p);
+        assert_eq!(r, Ok(ParseOutput::new("a".to_string(), 1)))
     }
 }
