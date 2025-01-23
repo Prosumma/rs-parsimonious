@@ -210,12 +210,7 @@ pub fn one_of_str<S: AsRef<str>>(s: S) -> impl Parser<char, char> {
 
 pub fn default<I, O>(parser: impl Parser<I, O>, make_default: impl Fn() -> O + Clone) -> impl Parser<I, O> {
   move |input: &[I], position: usize| {
-    let result = parser.parse(input, position);
-    if result.is_ok() {
-      result
-    } else {
-      ok!(make_default(), position)
-    }
+    parser.parse(input, position).or(ok!(make_default(), position))
   }
 }
 
