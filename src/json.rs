@@ -110,7 +110,7 @@ fn comma(input: &[char], position: usize) -> ParseResult<char> {
 
 pub fn jarray(input: &[char], position: usize) -> ParseResult<JSON> {
   let elems = json.many_sep(comma).surrounded_by(whitespace.many());
-  let parser = elems.preceded_by(eq('[')).followed_by(eq(']'));
+  let parser = elems.bracketed();
   parser.map(|elems| elems.into()).parse(input, position)
 }
 
@@ -126,8 +126,7 @@ pub fn jobject(input: &[char], position: usize) -> ParseResult<JSON> {
   let parser = jassignment
     .many_sep(comma)
     .surrounded_by(whitespace.many())
-    .preceded_by(eq('{'))
-    .followed_by(eq('}'));
+    .braced();
   let assignment_output = parser.parse(input, position)?;
   let mut hashmap: HashMap<String, Box<JSON>> = HashMap::new();
   for (key, value) in assignment_output.output {

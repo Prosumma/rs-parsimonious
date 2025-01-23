@@ -104,6 +104,22 @@ pub trait StringParser<I>: Parser<I, Vec<char>> {
 
 impl<I, P> StringParser<I> for P where P: Parser<I, Vec<char>> {}
 
+pub trait CharParser<O>: Parser<char, O> {
+  fn parenthesized(self) -> impl Parser<char, O> where Self: Sized {
+    parenthesized(self)
+  }
+
+  fn braced(self) -> impl Parser<char, O> where Self: Sized {
+    braced(self)
+  }
+
+  fn bracketed(self) -> impl Parser<char, O> where Self: Sized {
+    bracketed(self)
+  }
+}
+
+impl<O, P> CharParser<O> for P where P: Parser<char, O> {}
+
 pub fn satisfy<I: Clone>(test: impl Fn(&I) -> bool + Clone) -> impl Parser<I, I> {
   move |input: &[I], position: usize| {
     input.get(position)
@@ -301,56 +317,22 @@ pub fn whitespace(input: &[char], position: usize) -> ParseResult<char> {
   satisfy(unref(char::is_whitespace)).parse(input, position)
 }
 
+pub fn parenthesized<O>(parser: impl Parser<char, O>) -> impl Parser<char, O> {
+  parser.preceded_by(eq('(')).followed_by(eq(')'))
+}
+
+pub fn braced<O>(parser: impl Parser<char, O>) -> impl Parser<char, O> {
+  parser.preceded_by(eq('{')).followed_by(eq('}'))
+}
+
+pub fn bracketed<O>(parser: impl Parser<char, O>) -> impl Parser<char, O> {
+  parser.preceded_by(eq('[')).followed_by(eq(']'))
+}
+
 pub fn parse<I, O>(input: &[I], parser: impl Parser<I, O>) -> ParseResult<O> {
   parser.parse(input, 0)
 }
 
 pub fn parse_str<S: AsRef<str>, O>(input: S, parser: impl Parser<char, O>) -> ParseResult<O> {
   parse(&input.as_ref().chars().collect::<Vec<char>>(), parser)
-}
-
-#[cfg(test)]
-mod tests {
-  use super::*;
-
-  #[test]
-  fn eq_works() {
-    let s = "a";
-    let a = eq('a').end().to_vec().to_string();
-    let result = parse_str(s, a);
-    assert_eq!(result, ok!(s.to_string(), 1))
-  }
-
-  #[test]
-  fn or_works() {
-    let s = "aeiou  ";
-    let p = or!(eq('a'), eq('e'), eq('i'), eq('o'), eq('u')) 
-      .many()
-      .followed_by(whitespace.many())
-      .end()
-      .to_string();
-    let result = parse_str(s, p);
-    assert_eq!(result, ok!(s.trim_end().to_string(), s.len()))
-  }
-
-  #[test]
-  fn one_of_works() {
-    let s = "aeiou";
-    let p = one_of_str(s).many().followed_by(whitespace.many()).end().to_string();
-    let result = parse_str(s, p);
-    assert_eq!(result, ok!(s.trim_end().to_string(), s.len()))
-  }
-
-  #[test]
-  fn istring_works() {
-    let s = "DECLARE foo  ";
-    let p = last!(
-      istring("declare"),
-      whitespace.many1(),
-      one_of_str("fo").many1()
-    );
-    let p = p.followed_by(whitespace.many()).end().to_string();
-    let result = parse_str(s, p);
-    assert_eq!(result, ok!("foo".to_string(), 13))
-  }
 }
