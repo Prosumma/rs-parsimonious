@@ -1,3 +1,5 @@
+pub mod json;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ParseError {
   NoMatch(usize),
@@ -24,10 +26,12 @@ impl<O> ParseOutput<O> {
 
 pub type ParseResult<O> = Result<ParseOutput<O>, ParseError>;
 
+#[macro_export]
 macro_rules! ok {
   ($input:expr, $position:expr) => { Ok(ParseOutput::new($input, $position)) }  
 }
 
+#[macro_export]
 macro_rules! no {
   ($position:expr) => { Err(ParseError::NoMatch($position)) }
 }
@@ -47,8 +51,16 @@ pub trait Parser<I, O>: Clone {
     many(self)
   }
 
+  fn many_sep<S>(self, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> where Self: Sized {
+    many_sep(self, sep)
+  }
+
   fn many1(self) -> impl Parser<I, Vec<O>> where Self: Sized {
     many1(self)
+  }
+
+  fn many1_sep<S>(self, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> where Self: Sized {
+    many1_sep(self, sep)
   }
 
   fn or(self, other: impl Parser<I, O>) -> impl Parser<I, O> where Self: Sized {
@@ -65,6 +77,10 @@ pub trait Parser<I, O>: Clone {
 
   fn followed_by<F>(self, other: impl Parser<I, F>) -> impl Parser<I, O> where Self: Sized {
     first(self, other)
+  }
+
+  fn surrounded_by<S>(self, other: impl Parser<I, S>) -> impl Parser<I, O> where Self: Sized {
+    self.preceded_by(other.clone()).followed_by(other)
   }
 
   fn end(self) -> impl Parser<I, O> where Self: Sized {
@@ -226,8 +242,16 @@ pub fn many<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
   }
 }
 
+pub fn many_sep<I, O, S>(parser: impl Parser<I, O>, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
+  default(many1_sep(parser, sep), Vec::new)
+}
+
 pub fn many1<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
   chains(to_vec(parser.clone()), many(parser))
+}
+
+pub fn many1_sep<I, O, S>(parser: impl Parser<I, O>, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
+  chains(to_vec(parser.clone()), many(second(sep, parser)))
 }
 
 pub fn end<I>(input: &[I], position: usize) -> ParseResult<()> {
