@@ -13,6 +13,14 @@ fn test_jstring() {
 }
 
 #[test]
+fn test_jnumber() {
+  let s = "{\"integer\": 9874301}";
+  let p = json.end();
+  let result = parse_str(s, p);
+  assert_eq!(result, ok!(jobject!("integer" => JSON::Number("9874301".to_string())), 20))
+}
+
+#[test]
 fn test_jarray() {
   let s = "[\"watusi\", \"foo\" , [  \"crazy\"] ]";
   let p = json.end(); 

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq)]
 pub enum JSON {
   String(String),
+  Number(String),
   Array(Vec<Box<JSON>>),
   Object(HashMap<String, Box<JSON>>),
   Null
@@ -100,8 +101,20 @@ pub fn jstring(input: &[char], position: usize) -> ParseResult<JSON> {
   quoted_string.map(JSON::String).parse(input, position)
 }
 
+pub fn ascii_digit(input: &[char], position: usize) -> ParseResult<char> {
+  satisfy(|c: &char| c.is_ascii_digit()).parse(input, position)
+}
+
+pub fn jinteger(input: &[char], position: usize) -> ParseResult<JSON> {
+  ascii_digit.many1().to_string().map(JSON::Number).parse(input, position)
+}
+
+pub fn jnumber(input: &[char], position: usize) -> ParseResult<JSON> {
+  jinteger(input, position)
+}
+
 pub fn json(input: &[char], position: usize) -> ParseResult<JSON> {
-  or!(jstring, jobject, jarray, jnull).surrounded_by(whitespace.many()).parse(input, position)
+  or!(jstring, jnumber, jobject, jarray, jnull).surrounded_by(whitespace.many()).parse(input, position)
 }
 
 fn comma(input: &[char], position: usize) -> ParseResult<char> {
