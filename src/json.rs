@@ -16,6 +16,12 @@ impl From<&str> for JSON {
   }
 }
 
+impl<J: Into<JSON>> From<Option<J>> for JSON {
+  fn from(value: Option<J>) -> Self {
+    value.map_or_else(|| JSON::Null, |value| value.into())
+  }
+}
+
 impl<J: Into<JSON>> From<Vec<J>> for JSON {
   fn from(values: Vec<J>) -> Self {
     let mut boxes: Vec<Box<JSON>> = Vec::new();
@@ -23,12 +29,6 @@ impl<J: Into<JSON>> From<Vec<J>> for JSON {
       boxes.push(Box::new(value.into()));
     }
     JSON::Array(boxes)
-  }
-}
-
-impl<J: Into<JSON>> From<Option<J>> for JSON {
-  fn from(value: Option<J>) -> Self {
-    value.map_or_else(|| JSON::Null, |value| value.into())
   }
 }
 
@@ -58,9 +58,9 @@ macro_rules! jobject {
   ($($key:expr => $value:expr),*) => {{
     let mut keyed_boxes: HashMap<String, Box<JSON>> = HashMap::new();
     $(
-      keyed_boxes.insert($key, Box::new($value.into()))
+      keyed_boxes.insert($key.to_string(), Box::new($value.into()));
     )*
-    JSON::Array(keyed_boxes);
+    JSON::Object(keyed_boxes)
   }}
 }
 
@@ -76,6 +76,7 @@ fn json_string_body(input: &[char], position: usize) -> ParseResult<String> {
           // TODO: Add other possibilities
           _ => return Err(ParseError::NoMatch(position))
         }
+        escaping = false
       } else if c == '\\' {
         escaping = true
       } else if c == '"' {
@@ -100,14 +101,39 @@ pub fn jstring(input: &[char], position: usize) -> ParseResult<JSON> {
 }
 
 pub fn json(input: &[char], position: usize) -> ParseResult<JSON> {
-  or!(jstring, jarray, jnull).surrounded_by(whitespace.many()).parse(input, position)
+  or!(jstring, jobject, jarray, jnull).surrounded_by(whitespace.many()).parse(input, position)
+}
+
+fn comma(input: &[char], position: usize) -> ParseResult<char> {
+  eq(',').surrounded_by(whitespace.many()).parse(input, position)
 }
 
 pub fn jarray(input: &[char], position: usize) -> ParseResult<JSON> {
-  let comma = eq(',').surrounded_by(whitespace.many());
   let elems = json.many_sep(comma).surrounded_by(whitespace.many());
   let parser = elems.preceded_by(eq('[')).followed_by(eq(']'));
   parser.map(|elems| elems.into()).parse(input, position)
+}
+
+fn jassignment(input: &[char], position: usize) -> ParseResult<(String, JSON)> {
+  let colon = eq(':').surrounded_by(whitespace.many());
+  let key = quoted_string.followed_by(colon);
+  let key_output = key.parse(input, position)?;
+  let json_output = json.parse(input, key_output.position)?;
+  ok!((key_output.output, json_output.output), json_output.position)
+}
+
+pub fn jobject(input: &[char], position: usize) -> ParseResult<JSON> {
+  let parser = jassignment
+    .many_sep(comma)
+    .surrounded_by(whitespace.many())
+    .preceded_by(eq('{'))
+    .followed_by(eq('}'));
+  let assignment_output = parser.parse(input, position)?;
+  let mut hashmap: HashMap<String, Box<JSON>> = HashMap::new();
+  for (key, value) in assignment_output.output {
+    hashmap.insert(key, Box::new(value)); 
+  }
+  ok!(JSON::Object(hashmap), assignment_output.position)
 }
 
 pub fn jnull(input: &[char], position: usize) -> ParseResult<JSON> {
