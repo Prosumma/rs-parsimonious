@@ -1,4 +1,5 @@
-#[allow(unused_imports)]
+#![allow(unused_imports)]
+
 use crate::*;
 use std::collections::HashMap;
 
@@ -15,6 +16,11 @@ impl From<&str> for JSON {
   fn from(value: &str) -> Self {
       JSON::String(value.to_string())
   }
+}
+
+#[macro_export]
+macro_rules! n {
+  ($num:expr) => { JSON::Number($num.to_string()) }
 }
 
 impl<J: Into<JSON>> From<Option<J>> for JSON {

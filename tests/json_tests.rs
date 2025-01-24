@@ -17,7 +17,7 @@ fn test_jnumber() {
   let s = "{\"integer\": 9874301}";
   let p = json.end();
   let result = parse_str(s, p);
-  assert_eq!(result, ok!(jobject!("integer" => JSON::Number("9874301".to_string())), 20))
+  assert_eq!(result, ok!(jobject!("integer" => n!("9874301")), 20))
 }
 
 #[test]
