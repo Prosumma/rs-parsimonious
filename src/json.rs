@@ -131,7 +131,7 @@ fn jassignment(input: &[char], position: usize) -> ParseResult<(String, JSON)> {
   let colon = eq(':').whitespaced();
   let key = quoted_string.followed_by(colon);
   let key_output = key.parse(input, position)?;
-  let json_output = json.parse(input, key_output.position)?;
+  let json_output = json(input, key_output.position)?;
   ok!((key_output.output, json_output.output), json_output.position)
 }
 
