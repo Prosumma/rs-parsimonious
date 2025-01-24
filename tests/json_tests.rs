@@ -39,7 +39,7 @@ fn test_jobject() {
 #[test]
 fn test_jnull() {
   let s = " [null, \"null\\\"\"] ";
-  let p = json.surrounded_by(whitespace.many()).end();
+  let p = json.end();
   let result = parse_str(s,p);
   assert_eq!(result, ok!(vec![None, Some("null\"")].into(), s.len()))
 }

@@ -116,6 +116,10 @@ pub trait CharParser<O>: Parser<char, O> {
   fn bracketed(self) -> impl Parser<char, O> where Self: Sized {
     bracketed(self)
   }
+
+  fn whitespaced(self) -> impl Parser<char, O> where Self: Sized {
+    whitespaced(self)
+  }
 }
 
 impl<O, P> CharParser<O> for P where P: Parser<char, O> {}
@@ -327,6 +331,10 @@ pub fn braced<O>(parser: impl Parser<char, O>) -> impl Parser<char, O> {
 
 pub fn bracketed<O>(parser: impl Parser<char, O>) -> impl Parser<char, O> {
   parser.preceded_by(eq('[')).followed_by(eq(']'))
+}
+
+pub fn whitespaced<O>(parser: impl Parser<char, O>) -> impl Parser<char, O> {
+  parser.surrounded_by(whitespace.many())
 }
 
 pub fn parse<I, O>(input: &[I], parser: impl Parser<I, O>) -> ParseResult<O> {

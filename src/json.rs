@@ -114,21 +114,21 @@ pub fn jnumber(input: &[char], position: usize) -> ParseResult<JSON> {
 }
 
 pub fn json(input: &[char], position: usize) -> ParseResult<JSON> {
-  or!(jstring, jnumber, jobject, jarray, jnull).surrounded_by(whitespace.many()).parse(input, position)
+  or!(jstring, jnumber, jobject, jarray, jnull).whitespaced().parse(input, position)
 }
 
 fn comma(input: &[char], position: usize) -> ParseResult<char> {
-  eq(',').surrounded_by(whitespace.many()).parse(input, position)
+  eq(',').whitespaced().parse(input, position)
 }
 
 pub fn jarray(input: &[char], position: usize) -> ParseResult<JSON> {
-  let elems = json.many_sep(comma).surrounded_by(whitespace.many());
+  let elems = json.many_sep(comma).whitespaced();
   let parser = elems.bracketed();
   parser.map(|elems| elems.into()).parse(input, position)
 }
 
 fn jassignment(input: &[char], position: usize) -> ParseResult<(String, JSON)> {
-  let colon = eq(':').surrounded_by(whitespace.many());
+  let colon = eq(':').whitespaced();
   let key = quoted_string.followed_by(colon);
   let key_output = key.parse(input, position)?;
   let json_output = json.parse(input, key_output.position)?;
@@ -138,7 +138,7 @@ fn jassignment(input: &[char], position: usize) -> ParseResult<(String, JSON)> {
 pub fn jobject(input: &[char], position: usize) -> ParseResult<JSON> {
   let parser = jassignment
     .many_sep(comma)
-    .surrounded_by(whitespace.many())
+    .whitespaced()
     .braced();
   let assignment_output = parser.parse(input, position)?;
   let mut hashmap: HashMap<String, Box<JSON>> = HashMap::new();
