@@ -39,51 +39,51 @@ macro_rules! no {
 pub trait Parser<I, O>: Clone {
   fn parse(&self, input: &[I], position: usize) -> ParseResult<O>;
 
-  fn map<M>(self, transform: impl Fn(O) -> M + Clone) -> impl Parser<I, M> where Self: Sized {
+  fn map<M>(self, transform: impl Fn(O) -> M + Clone) -> impl Parser<I, M> {
     map(self, transform)
   }
 
-  fn to_vec(self) -> impl Parser<I, Vec<O>> where Self: Sized {
+  fn to_vec(self) -> impl Parser<I, Vec<O>> {
     to_vec(self)
   }
 
-  fn many(self) -> impl Parser<I, Vec<O>> where Self: Sized {
+  fn many(self) -> impl Parser<I, Vec<O>> {
     many(self)
   }
 
-  fn many_sep<S>(self, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> where Self: Sized {
+  fn many_sep<S>(self, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
     many_sep(self, sep)
   }
 
-  fn many1(self) -> impl Parser<I, Vec<O>> where Self: Sized {
+  fn many1(self) -> impl Parser<I, Vec<O>> {
     many1(self)
   }
 
-  fn many1_sep<S>(self, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> where Self: Sized {
+  fn many1_sep<S>(self, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
     many1_sep(self, sep)
   }
 
-  fn or(self, other: impl Parser<I, O>) -> impl Parser<I, O> where Self: Sized {
+  fn or(self, other: impl Parser<I, O>) -> impl Parser<I, O> {
     or(self, other)
   }
 
-  fn preceded_by<P>(self, other: impl Parser<I, P>) -> impl Parser<I, O> where Self: Sized {
+  fn preceded_by<P>(self, other: impl Parser<I, P>) -> impl Parser<I, O> {
     second(other, self)
   }
 
-  fn preceding<P>(self, other: impl Parser<I, P>) -> impl Parser<I, P> where Self: Sized {
+  fn preceding<P>(self, other: impl Parser<I, P>) -> impl Parser<I, P> {
     second(self, other)
   }
 
-  fn followed_by<F>(self, other: impl Parser<I, F>) -> impl Parser<I, O> where Self: Sized {
+  fn followed_by<F>(self, other: impl Parser<I, F>) -> impl Parser<I, O> {
     first(self, other)
   }
 
-  fn surrounded_by<S>(self, other: impl Parser<I, S>) -> impl Parser<I, O> where Self: Sized {
+  fn surrounded_by<S>(self, other: impl Parser<I, S>) -> impl Parser<I, O> {
     self.preceded_by(other.clone()).followed_by(other)
   }
 
-  fn end(self) -> impl Parser<I, O> where Self: Sized {
+  fn end(self) -> impl Parser<I, O> {
     self.followed_by(end)
   }
 }
@@ -97,7 +97,7 @@ impl<I, O, F> Parser<I, O> for F
 }
 
 pub trait StringParser<I>: Parser<I, Vec<char>> {
-  fn to_string(self) -> impl Parser<I, String> where Self: Sized {
+  fn to_string(self) -> impl Parser<I, String> {
     self.map(|chars| chars.into_iter().collect())
   }
 }
@@ -105,19 +105,19 @@ pub trait StringParser<I>: Parser<I, Vec<char>> {
 impl<I, P> StringParser<I> for P where P: Parser<I, Vec<char>> {}
 
 pub trait CharParser<O>: Parser<char, O> {
-  fn parenthesized(self) -> impl Parser<char, O> where Self: Sized {
+  fn parenthesized(self) -> impl Parser<char, O> {
     parenthesized(self)
   }
 
-  fn braced(self) -> impl Parser<char, O> where Self: Sized {
+  fn braced(self) -> impl Parser<char, O> {
     braced(self)
   }
 
-  fn bracketed(self) -> impl Parser<char, O> where Self: Sized {
+  fn bracketed(self) -> impl Parser<char, O> {
     bracketed(self)
   }
 
-  fn whitespaced(self) -> impl Parser<char, O> where Self: Sized {
+  fn whitespaced(self) -> impl Parser<char, O> {
     whitespaced(self)
   }
 }
@@ -142,7 +142,7 @@ pub fn eq<I: Clone + PartialEq>(model: I) -> impl Parser<I, I> {
 pub fn eqs<I: Clone + PartialEq>(models: Vec<I>) -> impl Parser<I, Vec<I>> {
   move |input: &[I], position: usize| {
     let mut position = position;
-    for model in models.iter() {
+    for model in &models {
       let output = eq(model.clone()).parse(input, position)?;
       position = output.position;
     }
@@ -155,12 +155,12 @@ pub fn eq_str<S: AsRef<str>>(s: S, case_sensitive: bool) -> impl Parser<char, St
   move |input: &[char], position: usize| {
     let mut outputs = Vec::new();
     let mut position = position;
-    for c in chars.iter() {
+    for c in &chars {
       let test = |i: &char| {
         if case_sensitive {
-          i.to_ascii_lowercase() == c.to_ascii_lowercase()
-        } else {
           i == c
+        } else {
+          i.to_ascii_lowercase() == c.to_ascii_lowercase()
         }
       };
       let output = satisfy(test).parse(input, position)?; 
@@ -172,11 +172,11 @@ pub fn eq_str<S: AsRef<str>>(s: S, case_sensitive: bool) -> impl Parser<char, St
 }
 
 pub fn string<S: AsRef<str>>(s: S) -> impl Parser<char, String> {
-  eq_str(s, false)
+  eq_str(s, true)
 }
 
 pub fn istring<S: AsRef<str>>(s: S) -> impl Parser<char, String> {
-  eq_str(s, true)
+  eq_str(s, false)
 }
 
 pub fn map<I, O, M>(parser: impl Parser<I, O>, transform: impl Fn(O) -> M + Clone) -> impl Parser<I, M> {
@@ -230,7 +230,7 @@ macro_rules! or {
 
 pub fn one_of<I: Clone + PartialEq>(values: Vec<I>) -> impl Parser<I, I> {
   move |input: &[I], position: usize| {
-    for value in values.iter() {
+    for value in &values {
       let result = eq(value.clone()).parse(input, position);
       if result.is_ok() {
         return result

@@ -18,6 +18,12 @@ impl From<&str> for JSON {
   }
 }
 
+impl From<u64> for JSON {
+  fn from(value: u64) -> Self {
+      JSON::Number(format!("{}", value))
+  }
+}
+
 #[macro_export]
 macro_rules! n {
   ($num:expr) => { JSON::Number($num.to_string()) }
