@@ -14,10 +14,10 @@ fn test_jstring() {
 
 #[test]
 fn test_jnumber() {
-  let s = "{\"integer\": 9874301}";
+  let s = "{\"integer\": 9874301, \"foo\": 983.47}";
   let p = json.end();
   let result = parse_str(s, p);
-  assert_eq!(result, ok!(jobject!("integer" => n!("9874301")), 20))
+  assert_eq!(result, ok!(jobject!("integer" => n!("9874301"), "foo" => n!("983.47")), 35))
 }
 
 #[test]
@@ -42,4 +42,20 @@ fn test_jnull() {
   let p = json.end();
   let result = parse_str(s,p);
   assert_eq!(result, ok!(vec![None, Some("null\"")].into(), s.len()))
+}
+
+#[test]
+fn test_sfloat() {
+  let s = "98.342";
+  let p = sfloat.end();
+  let result = parse_str(s, p);
+  assert_eq!(result, ok!(s.to_string(), s.len()))
+}
+
+#[test]
+fn test_sinteger() {
+  let s = "98342";
+  let p = sinteger.end();
+  let result = parse_str(s, p);
+  assert_eq!(result, ok!(s.to_string(), s.len()))
 }

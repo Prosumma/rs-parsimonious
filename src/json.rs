@@ -6,7 +6,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq)]
 pub enum JSON {
   String(String),
-  Number(String),
+  Number(String), // Not ideal, but will do for now
   Array(Vec<Box<JSON>>),
   Object(HashMap<String, Box<JSON>>),
   Null
@@ -106,7 +106,7 @@ fn json_string_body(input: &[char], position: usize) -> ParseResult<String> {
 }
 
 fn quoted_string(input: &[char], position: usize) -> ParseResult<String> {
-  json_string_body.preceded_by(eq('"')).followed_by(eq('"')).parse(input, position)
+  json_string_body.double_quoted().parse(input, position)
 }
 
 pub fn jstring(input: &[char], position: usize) -> ParseResult<JSON> {
@@ -117,12 +117,24 @@ pub fn ascii_digit(input: &[char], position: usize) -> ParseResult<char> {
   satisfy(|c: &char| c.is_ascii_digit()).parse(input, position)
 }
 
-pub fn jinteger(input: &[char], position: usize) -> ParseResult<JSON> {
-  ascii_digit.many1().to_string().map(JSON::Number).parse(input, position)
+fn cinteger(input: &[char], position: usize) -> ParseResult<Vec<char>> {
+  ascii_digit.many1().parse(input, position)
+}
+
+pub fn sinteger(input: &[char], position: usize) -> ParseResult<String> {
+  cinteger.to_string().parse(input, position)
+}
+
+pub fn sfloat(input: &[char], position: usize) -> ParseResult<String> {
+  chains!(cinteger, eq('.').to_vec(), cinteger).to_string().parse(input, position)
+}
+
+pub fn snumber(input: &[char], position: usize) -> ParseResult<String> {
+  or!(sfloat, sinteger).parse(input, position)
 }
 
 pub fn jnumber(input: &[char], position: usize) -> ParseResult<JSON> {
-  jinteger(input, position)
+  snumber.map(JSON::Number).parse(input, position)  
 }
 
 pub fn json(input: &[char], position: usize) -> ParseResult<JSON> {
@@ -134,8 +146,7 @@ fn comma(input: &[char], position: usize) -> ParseResult<char> {
 }
 
 pub fn jarray(input: &[char], position: usize) -> ParseResult<JSON> {
-  let elems = json.many_sep(comma).whitespaced();
-  let parser = elems.bracketed();
+  let parser = json.many_sep(comma).whitespaced().bracketed();
   parser.map(|elems| elems.into()).parse(input, position)
 }
 

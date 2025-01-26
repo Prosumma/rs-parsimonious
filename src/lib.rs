@@ -120,6 +120,14 @@ pub trait CharParser<O>: Parser<char, O> {
   fn whitespaced(self) -> impl Parser<char, O> {
     whitespaced(self)
   }
+
+  fn single_quoted(self) -> impl Parser<char, O> {
+    single_quoted(self)
+  }
+
+  fn double_quoted(self) -> impl Parser<char, O> {
+    double_quoted(self)
+  }
 }
 
 impl<O, P> CharParser<O> for P where P: Parser<char, O> {}
@@ -335,6 +343,14 @@ pub fn bracketed<O>(parser: impl Parser<char, O>) -> impl Parser<char, O> {
 
 pub fn whitespaced<O>(parser: impl Parser<char, O>) -> impl Parser<char, O> {
   parser.surrounded_by(whitespace.many())
+}
+
+pub fn single_quoted<O>(parser: impl Parser<char, O>) -> impl Parser<char, O> {
+  parser.surrounded_by(eq('\''))
+}
+
+pub fn double_quoted<O>(parser: impl Parser<char, O>) -> impl Parser<char, O> {
+  parser.surrounded_by(eq('"'))
 }
 
 pub fn parse<I, O>(input: &[I], parser: impl Parser<I, O>) -> ParseResult<O> {
