@@ -145,7 +145,7 @@ pub fn any<I: Clone>(context: &mut ParseContext<I>) -> Result<I, ParseError> {
   if let Some(i) = context.current() {
     Ok(i.clone())
   } else {
-    Err(ParseError::NoMatch(context.position))
+    context.no_match()
   }
 }
 

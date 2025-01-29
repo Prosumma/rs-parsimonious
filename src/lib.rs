@@ -149,7 +149,7 @@ pub fn one_of<I: PartialEq + Clone>(choices: Vec<I>) -> impl Parser<I, I> {
       } 
       context.position = position;
     }
-    Err(ParseError::NoMatch(position))
+    context.no_match()
   }
 }
 
@@ -191,5 +191,17 @@ mod tests {
     let p = many1(one_of_str("aeiou")).to_string().end();
     let r = parse_str(s, p);
     assert_eq!(r, Ok(s.to_string()))
+  }
+
+  #[test]
+  fn ik() {
+    let s = "kxt"; 
+    let p = chains(
+      // This demonstrates that `peek` can match, but does not move the position forward.
+      many(one_of_str("kx")).followed_by(peek(eq('t'))),
+      eq('t').to_vec()
+    ).to_string();
+    let r = parse_str(s, p);    
+    assert_eq!(r, Ok("kxt".to_string()))
   }
 }
