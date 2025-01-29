@@ -1,4 +1,5 @@
 mod core;
+pub mod json;
 
 pub use core::*;
 
@@ -31,6 +32,14 @@ pub trait ExtParser<I, O>: Parser<I, O> {
     self.preceded_by(surrounder.clone()).followed_by(surrounder)
   }
 
+  fn many_sep<S>(self, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
+    many_sep(self, sep)
+  }
+
+  fn many1_sep<S>(self, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
+    many1_sep(self, sep)
+  }
+
   fn end(self) -> impl Parser<I, O> {
     self.followed_by(end)
   }
@@ -56,15 +65,23 @@ pub trait CharParser<O>: Parser<char, O> {
   }
 
   fn bracketed(self) -> impl Parser<char, O> {
-    encircle(self, '{', '}')
+    encircle(self, '[', ']')
   }
 
   fn braced(self) -> impl Parser<char, O> {
-    encircle(self, '[', ']')
+    encircle(self, '{', '}')
   }
 
   fn parenthesized(self) -> impl Parser<char, O> {
     encircle(self, '(', ')')
+  }
+
+  fn single_quoted(self) -> impl Parser<char, O> {
+    self.surrounded_by(eq('\''))
+  }
+
+  fn double_quoted(self) -> impl Parser<char, O> {
+    self.surrounded_by(eq('"'))
   }
 }
 
