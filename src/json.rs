@@ -1,176 +1,124 @@
-#![allow(unused_imports)]
-
 use crate::*;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum JSON {
   String(String),
-  Number(String), // Not ideal, but will do for now
-  Array(Vec<Box<JSON>>),
-  Object(HashMap<String, Box<JSON>>),
-  Null
+  Number(String),
+  Array(Box<Vec<JSON>>),
+  Object(Box<HashMap<String, JSON>>)
 }
 
-impl From<&str> for JSON {
-  fn from(value: &str) -> Self {
-      JSON::String(value.to_string())
+impl JSON {
+  pub fn empty_array() -> JSON {
+    JSON::Array(Box::new(Vec::new()))
+  }
+
+  pub fn empty_object() -> JSON {
+    JSON::Object(Box::new(HashMap::new()))
   }
 }
 
-impl From<u64> for JSON {
-  fn from(value: u64) -> Self {
-      JSON::Number(format!("{}", value))
-  }
-}
-
-#[macro_export]
-macro_rules! n {
-  ($num:expr) => { JSON::Number($num.to_string()) }
-}
-
-impl<J: Into<JSON>> From<Option<J>> for JSON {
-  fn from(value: Option<J>) -> Self {
-    value.map_or_else(|| JSON::Null, |value| value.into())
-  }
-}
-
-impl<J: Into<JSON>> From<Vec<J>> for JSON {
-  fn from(values: Vec<J>) -> Self {
-    let mut boxes: Vec<Box<JSON>> = Vec::new();
-    for value in values {
-      boxes.push(Box::new(value.into()));
-    }
-    JSON::Array(boxes)
+impl<S: Into<String>> From<S> for JSON {
+  fn from(value: S) -> JSON {
+      JSON::String(value.into())
   }
 }
 
 #[macro_export]
 macro_rules! jarray {
   ($($value:expr),*) => {{
-    let mut boxes: Vec<Box<JSON>> = Vec::new();
+    #[allow(unused_mut)]
+    let mut values: Vec<JSON> = Vec::new();
     $(
-      boxes.push(Box::new($value.into()));
+      values.push($value.into());
     )*
-    JSON::Array(boxes)
+    JSON::Array(Box::new(values))
   }}
-}
-
-impl<J: Into<JSON>> From<HashMap<String, J>> for JSON {
-  fn from(values: HashMap<String, J>) -> Self {
-      let mut keyed_boxes: HashMap<String, Box<JSON>> = HashMap::new();
-      for (key, value) in values {
-        keyed_boxes.insert(key, Box::new(value.into()));
-      }
-      JSON::Object(keyed_boxes)
-  }
 }
 
 #[macro_export]
 macro_rules! jobject {
   ($($key:expr => $value:expr),*) => {{
-    let mut keyed_boxes: HashMap<String, Box<JSON>> = HashMap::new();
+    #[allow(unused_mut)]
+    let mut values: HashMap<String, JSON> = HashMap::new(); 
     $(
-      keyed_boxes.insert($key.to_string(), Box::new($value.into()));
+      values.insert($key.to_string(), $value.into());
     )*
-    JSON::Object(keyed_boxes)
+    JSON::Object(Box::new(values))
   }}
 }
 
-fn json_string_body(input: &[char], position: usize) -> ParseResult<String> {
-  let mut chars: Vec<char> = Vec::new();
-  let mut position = position;
+fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, ParseError> {
+  let mut s = String::new();
   let mut escaping = false;
   loop {
-    if let Some(&c) = input.get(position) {
+    if let Some(&c) = context.current() {
       if escaping {
         match c {
-          '"' | '\\' => chars.push(c),
-          // TODO: Add other possibilities
-          _ => return Err(ParseError::NoMatch(position))
+          '"' => s.push(c),
+          '\\' => s.push(c),
+          // TODO: The rest of the escape sequences recognized in JSON.
+          _ => return context.no_match() 
         }
         escaping = false
       } else if c == '\\' {
         escaping = true
       } else if c == '"' {
-        break 
+        break
       } else {
-        chars.push(c);
+        s.push(c)
       }
-      position += 1;
+      context.position += 1;
     } else {
       return Err(ParseError::EndOfInput)
     }
   }
-  ok!(chars.into_iter().collect(), position)
+  Ok(s)
 }
 
-fn quoted_string(input: &[char], position: usize) -> ParseResult<String> {
-  json_string_body.double_quoted().parse(input, position)
+fn quoted_string(context: &mut ParseContext<char>) -> Result<String, ParseError> {
+  unquoted_string.double_quoted().parse(context)
 }
 
-pub fn jstring(input: &[char], position: usize) -> ParseResult<JSON> {
-  quoted_string.map(JSON::String).parse(input, position)
+fn jstring(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+  quoted_string.map(JSON::String).parse(context)
 }
 
-pub fn ascii_digit(input: &[char], position: usize) -> ParseResult<char> {
-  satisfy(|c: &char| c.is_ascii_digit()).parse(input, position)
+fn jarray(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+  json.many_sep(eq(',')).whitespaced().bracketed().map(|output| JSON::Array(Box::new(output))).parse(context)
 }
 
-fn cinteger(input: &[char], position: usize) -> ParseResult<Vec<char>> {
-  ascii_digit.many1().parse(input, position)
+fn jassign(context: &mut ParseContext<char>) -> Result<(String, JSON), ParseError> {
+  let key = quoted_string.whitespaced().parse(context)?;
+  eq(':').parse(context)?;
+  let value = json.parse(context)?;
+  Ok((key, value))
 }
 
-pub fn sinteger(input: &[char], position: usize) -> ParseResult<String> {
-  cinteger.to_string().parse(input, position)
-}
-
-pub fn sfloat(input: &[char], position: usize) -> ParseResult<String> {
-  chains!(cinteger, eq('.').to_vec(), cinteger).to_string().parse(input, position)
-}
-
-pub fn snumber(input: &[char], position: usize) -> ParseResult<String> {
-  or!(sfloat, sinteger).parse(input, position)
-}
-
-pub fn jnumber(input: &[char], position: usize) -> ParseResult<JSON> {
-  snumber.map(JSON::Number).parse(input, position)  
-}
-
-pub fn json(input: &[char], position: usize) -> ParseResult<JSON> {
-  or!(jstring, jnumber, jobject, jarray, jnull).whitespaced().parse(input, position)
-}
-
-fn comma(input: &[char], position: usize) -> ParseResult<char> {
-  eq(',').whitespaced().parse(input, position)
-}
-
-pub fn jarray(input: &[char], position: usize) -> ParseResult<JSON> {
-  let parser = json.many_sep(comma).whitespaced().bracketed();
-  parser.map(|elems| elems.into()).parse(input, position)
-}
-
-fn jassignment(input: &[char], position: usize) -> ParseResult<(String, JSON)> {
-  let colon = eq(':').whitespaced();
-  let key = quoted_string.followed_by(colon);
-  let key_output = key.parse(input, position)?;
-  let json_output = json(input, key_output.position)?;
-  ok!((key_output.output, json_output.output), json_output.position)
-}
-
-pub fn jobject(input: &[char], position: usize) -> ParseResult<JSON> {
-  let parser = jassignment
-    .many_sep(comma)
-    .whitespaced()
-    .braced();
-  let assignment_output = parser.parse(input, position)?;
-  let mut hashmap: HashMap<String, Box<JSON>> = HashMap::new();
-  for (key, value) in assignment_output.output {
-    hashmap.insert(key, Box::new(value)); 
+fn jobject(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+  let assignments = jassign.many_sep(eq(',')).whitespaced().braced().parse(context)?;
+  let mut object = HashMap::new();
+  for (key, value) in assignments {
+    object.insert(key, value);
   }
-  ok!(JSON::Object(hashmap), assignment_output.position)
+  Ok(JSON::Object(Box::new(object)))
 }
 
-pub fn jnull(input: &[char], position: usize) -> ParseResult<JSON> {
-  string("null").map(|_| JSON::Null).parse(input, position)
+pub fn json(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+  or!(jstring, jarray, jobject).whitespaced().parse(context)
+}
+
+#[cfg(test)]
+mod tests {
+  use crate::*;
+  use super::*;
+
+  #[test]
+  fn json_parses() {
+    let s = r#"{"foo": "bar", "x": ["a", {}]}"#;
+    let j = parse_str(s, json.end());
+    let expected = jobject!{"foo" => "bar", "x" => jarray!["a", jobject!{}]};
+    assert_eq!(j, Ok(expected)) 
+  }
 }
