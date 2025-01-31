@@ -9,6 +9,16 @@ pub enum JSON {
   Object(Box<HashMap<String, JSON>>)
 }
 
+impl JSON {
+  pub fn empty_array() -> JSON {
+    JSON::Array(Box::new(Vec::new()))
+  }
+
+  pub fn empty_object() -> JSON {
+    JSON::Object(Box::new(HashMap::new()))
+  }
+}
+
 impl<S: Into<String>> From<S> for JSON {
   fn from(value: S) -> JSON {
       JSON::String(value.into())
@@ -18,6 +28,7 @@ impl<S: Into<String>> From<S> for JSON {
 #[macro_export]
 macro_rules! jarray {
   ($($value:expr),*) => {{
+    #[allow(unused_mut)]
     let mut values: Vec<JSON> = Vec::new();
     $(
       values.push($value.into());
@@ -29,6 +40,7 @@ macro_rules! jarray {
 #[macro_export]
 macro_rules! jobject {
   ($($key:expr => $value:expr),*) => {{
+    #[allow(unused_mut)]
     let mut values: HashMap<String, JSON> = HashMap::new(); 
     $(
       values.insert($key.to_string(), $value.into());
@@ -79,7 +91,7 @@ fn jarray(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
 
 fn jassign(context: &mut ParseContext<char>) -> Result<(String, JSON), ParseError> {
   let key = quoted_string.whitespaced().parse(context)?;
-  _ = eq(':').parse(context)?;
+  eq(':').parse(context)?;
   let value = json.parse(context)?;
   Ok((key, value))
 }
@@ -104,9 +116,9 @@ mod tests {
 
   #[test]
   fn json_parses() {
-    let s = r#"{"foo": "bar", "x": ["a"]}"#;
+    let s = r#"{"foo": "bar", "x": ["a", {}]}"#;
     let j = parse_str(s, json.end());
-    let expected = jobject!{"foo" => "bar", "x" => jarray!["a"]};
+    let expected = jobject!{"foo" => "bar", "x" => jarray!["a", jobject!{}]};
     assert_eq!(j, Ok(expected)) 
   }
 }

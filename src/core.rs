@@ -37,9 +37,7 @@ impl<I, O, F: Clone> Parser<I, O> for F where F: Fn(&mut ParseContext<I>) -> Res
   }
 }
 
-pub fn satisfy<I: Clone, T: Clone>(test: T) -> impl Parser<I, I>
-  where T: Fn(&I) -> bool
-{
+pub fn satisfy<I: Clone>(test: impl Fn(&I) -> bool + Clone) -> impl Parser<I, I> {
   move |context: &mut ParseContext<I>| {
     if let Some(i) = context.current() {
       if test(i) {
