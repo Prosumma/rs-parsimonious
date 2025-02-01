@@ -107,6 +107,16 @@ pub fn eq<I: Clone + PartialEq>(model: I) -> impl Parser<I, I> {
   satisfy(move |i| *i == model)
 }
 
+pub fn eqc(model: char, case_sensitive: bool) -> impl Parser<char, char> {
+  satisfy(move |c: &char| {
+    if case_sensitive {
+      *c == model
+    } else {
+      c.to_ascii_lowercase() == model.to_ascii_lowercase()
+    }
+  })
+}
+
 pub fn to_vec<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
   map(parser, |output| vec![output])
 }
@@ -161,6 +171,26 @@ pub fn flatten<I, O>(parser: impl Parser<I, Vec<Vec<O>>>) -> impl Parser<I, Vec<
     }
     outputs
   })
+}
+
+pub fn eqs<S: AsRef<str>>(s: S, case_sensitive: bool) -> impl Parser<char, Vec<char>> {
+  let chars: Vec<char> = s.as_ref().chars().collect();
+  move |context: &mut ParseContext<char>| {
+    let mut matched = Vec::new();
+    for &c in &chars {
+      let m = eqc(c, case_sensitive).parse(context)?;
+      matched.push(m);
+    }
+    Ok(matched)
+  }
+}
+
+pub fn string<S: AsRef<str>>(s: S) -> impl Parser<char, Vec<char>> {
+  eqs(s, true)
+}
+
+pub fn istring<S: AsRef<str>>(s: S) -> impl Parser<char, Vec<char>> {
+  eqs(s, false)
 }
 
 pub fn one_of_str<S: AsRef<str>>(s: S) -> impl Parser<char, char> {

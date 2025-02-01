@@ -5,8 +5,10 @@ use std::collections::HashMap;
 pub enum JSON {
   String(String),
   Number(String),
+  Bool(bool),
   Array(Box<Vec<JSON>>),
-  Object(Box<HashMap<String, JSON>>)
+  Object(Box<HashMap<String, JSON>>),
+  Null
 }
 
 impl JSON {
@@ -85,6 +87,15 @@ fn jstring(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   quoted_string.map(JSON::String).parse(context)
 }
 
+pub static TRUE: JSON = JSON::Bool(true);
+pub static FALSE: JSON = JSON::Bool(false);
+
+fn jbool(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+  let jtrue = string("true").map(|_| TRUE.clone());
+  let jfalse = string("false").map(|_| FALSE.clone());
+  or(jtrue, jfalse).parse(context)
+}
+
 fn jarray(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   json.many_sep(eq(',')).whitespaced().bracketed().map(|output| JSON::Array(Box::new(output))).parse(context)
 }
@@ -105,8 +116,12 @@ fn jobject(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   Ok(JSON::Object(Box::new(object)))
 }
 
+fn jnull(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+  string("null").map(|_| JSON::Null).parse(context)
+}
+
 pub fn json(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
-  or!(jstring, jarray, jobject).whitespaced().parse(context)
+  or!(jstring, jbool, jnull, jarray, jobject).whitespaced().parse(context)
 }
 
 #[cfg(test)]
@@ -116,9 +131,9 @@ mod tests {
 
   #[test]
   fn json_parses() {
-    let s = r#"{"foo": "bar", "x": ["a", {}]}"#;
+    let s = r#"{"foo": "bar", "x": ["a", {}, true, null]}"#;
     let j = parse_str(s, json.end());
-    let expected = jobject!{"foo" => "bar", "x" => jarray!["a", jobject!{}]};
+    let expected = jobject!{"foo" => "bar", "x" => jarray!["a", jobject!{}, TRUE.clone(), JSON::Null]};
     assert_eq!(j, Ok(expected)) 
   }
 }
