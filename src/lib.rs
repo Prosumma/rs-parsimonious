@@ -2,6 +2,7 @@ mod core;
 pub mod json;
 
 pub use core::*;
+use std::ops::RangeInclusive;
 
 pub trait ExtParser<I, O>: Parser<I, O> {
   fn map<M>(self, f: impl Fn(O) -> M + Clone) -> impl Parser<I, M> {
@@ -173,6 +174,10 @@ pub fn flatten<I, O>(parser: impl Parser<I, Vec<Vec<O>>>) -> impl Parser<I, Vec<
   })
 }
 
+pub fn range<I, O>(range: RangeInclusive<usize>, parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+  chains(count(*range.start(), parser.clone()), upto(range.end() - range.start(), parser))
+}
+
 pub fn eqs<S: AsRef<str>>(s: S, case_sensitive: bool) -> impl Parser<char, Vec<char>> {
   let chars: Vec<char> = s.as_ref().chars().collect();
   move |context: &mut ParseContext<char>| {
@@ -233,5 +238,25 @@ mod tests {
     ).to_string();
     let r = parse_str(s, p);    
     assert_eq!(r, Ok("kxt".to_string()))
+  }
+
+  #[test]
+  fn test_count() {
+    let s = "dadada";
+    let p = count(2, string("da")).flatten().to_string().end();
+    let r = parse_str(s, p);
+    assert_eq!(r, Err(ParseError::NoMatch(4)))
+  }
+
+  #[test]
+  fn test_range() {
+    let s = "kakakaka";
+    let p = range(2..=4, string("ka")).flatten().to_string().end();
+    let r = parse_str(s, p);
+    assert_eq!(r, Ok(s.to_string()));
+
+    let p = range(2..=3, string("ka")).flatten().to_string().end();
+    let r = parse_str(s, p);
+    assert_eq!(r, Err(ParseError::NoMatch(6)));
   }
 }

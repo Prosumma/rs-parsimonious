@@ -21,9 +21,15 @@ impl JSON {
   }
 }
 
-impl<S: Into<String>> From<S> for JSON {
-  fn from(value: S) -> JSON {
+impl From<&str> for JSON {
+  fn from(value: &str) -> JSON {
       JSON::String(value.into())
+  }
+}
+
+impl From<bool> for JSON {
+  fn from(value: bool) -> JSON {
+    JSON::Bool(value)
   }
 }
 
@@ -87,12 +93,9 @@ fn jstring(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   quoted_string.map(JSON::String).parse(context)
 }
 
-pub static TRUE: JSON = JSON::Bool(true);
-pub static FALSE: JSON = JSON::Bool(false);
-
 fn jbool(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
-  let jtrue = string("true").map(|_| TRUE.clone());
-  let jfalse = string("false").map(|_| FALSE.clone());
+  let jtrue = string("true").map(|_| true.into());
+  let jfalse = string("false").map(|_| false.into()); 
   or(jtrue, jfalse).parse(context)
 }
 
@@ -133,7 +136,7 @@ mod tests {
   fn json_parses() {
     let s = r#"{"foo": "bar", "x": ["a", {}, true, null]}"#;
     let j = parse_str(s, json.end());
-    let expected = jobject!{"foo" => "bar", "x" => jarray!["a", jobject!{}, TRUE.clone(), JSON::Null]};
+    let expected = jobject!{"foo" => "bar", "x" => jarray!["a", jobject!{}, true, JSON::Null]};
     assert_eq!(j, Ok(expected)) 
   }
 }

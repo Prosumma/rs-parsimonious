@@ -1,3 +1,5 @@
+use std::ops::{Range, RangeBounds};
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ParseError {
   NoMatch(usize),
@@ -99,9 +101,25 @@ pub fn first<I, F, S>(first: impl Parser<I, F>, second: impl Parser<I, S>) -> im
   }
 }
 
+#[macro_export]
+macro_rules! first {
+  ($parser:expr) => { $parser };
+  ($parser:expr, $($rest:expr),+) => {
+    first($parser, first!($($rest),+))
+  }
+}
+
 pub fn second<I, F, S>(first: impl Parser<I, F>, second: impl Parser<I, S>) -> impl Parser<I, S> {
   move |context: &mut ParseContext<I>| {
     first.parse(context).and_then(|_| second.parse(context))
+  }
+}
+
+#[macro_export]
+macro_rules! last {
+  ($parser:expr) => { $parser };
+  ($parser:expr, $($rest:expr),+) => {
+    second($parser, last!($($rest),+))
   }
 }
 
@@ -143,7 +161,7 @@ pub fn any<I: Clone>(context: &mut ParseContext<I>) -> Result<I, ParseError> {
   if let Some(i) = context.current() {
     Ok(i.clone())
   } else {
-    context.no_match()
+    Err(ParseError::EndOfInput)
   }
 }
 
@@ -158,8 +176,31 @@ pub fn count<I, O>(count: usize, parser: impl Parser<I, O>) -> impl Parser<I, Ve
   }
 }
 
+pub fn upto<I, O>(upto: usize, parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+  move |context: &mut ParseContext<I>| {
+    let mut outputs = Vec::new();
+    while outputs.len() < upto {
+      let position = context.position;
+      if let Ok(output) = parser.parse(context) {
+        outputs.push(output)
+      } else {
+        context.position = position;
+        break
+      }
+    }
+    Ok(outputs)
+  }
+}
+
 pub fn default<I, O>(default: impl Fn() -> O + Clone, parser: impl Parser<I, O>) -> impl Parser<I, O> {
   move |context: &mut ParseContext<I>| {
-    parser.parse(context).or_else(|_| Ok(default()))
-  }  
+    let position = context.position;
+    let result = parser.parse(context);
+    if result.is_ok() {
+      result
+    } else {
+      context.position = position;
+      Ok(default())
+    }
+  }
 }
