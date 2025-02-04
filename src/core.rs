@@ -37,6 +37,8 @@ impl<I, O, F: Clone> Parser<I, O> for F where F: Fn(&mut ParseContext<I>) -> Res
   }
 }
 
+/// The fundamental combinator. Applies `test` to an individual element, returning
+/// that element on success and `ParseError::NoMatch` on failure.
 pub fn satisfy<I: Clone>(test: impl Fn(&I) -> bool + Clone) -> impl Parser<I, I> {
   move |context: &mut ParseContext<I>| {
     if let Some(i) = context.current() {
