@@ -22,7 +22,7 @@ impl<'a, I> ParseContext<'a, I> {
     Err(ParseError::NoMatch(self.position))
   }
 
-  pub fn end_of_input(&self) -> bool {
+  pub fn at_end(&self) -> bool {
     self.position >= self.input.len()
   }
 }
@@ -148,7 +148,7 @@ pub fn not<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, ()> {
 }
 
 pub fn end<I>(context: &mut ParseContext<I>) -> Result<(), ParseError> {
-  if context.end_of_input() {
+  if context.at_end() {
     Ok(())
   } else {
     context.no_match()
