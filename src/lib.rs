@@ -108,10 +108,14 @@ pub fn eq<I: Clone + PartialEq>(model: I) -> impl Parser<I, I> {
   satisfy(move |i| *i == model)
 }
 
+pub fn ch(test: impl Fn(char) -> bool + Clone) -> impl Parser<char, char> {
+  satisfy(move |c: &char| test(*c))
+}
+
 pub fn eqc(model: char, case_sensitive: bool) -> impl Parser<char, char> {
-  satisfy(move |c: &char| {
+  ch(move |c| {
     if case_sensitive {
-      *c == model
+      c == model
     } else {
       c.to_ascii_lowercase() == model.to_ascii_lowercase()
     }
@@ -147,7 +151,7 @@ pub fn many1_sep<I, O, S>(parser: impl Parser<I, O>, sep: impl Parser<I, S>) -> 
 }
 
 pub fn many_sep<I, O, S>(parser: impl Parser<I, O>, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
-  default(Vec::new, many1_sep(parser, sep))
+  or(many1_sep(parser, sep), just(Vec::new))
 }
 
 pub fn one_of<I: PartialEq + Clone>(choices: Vec<I>) -> impl Parser<I, I> {
@@ -203,7 +207,7 @@ pub fn one_of_str<S: AsRef<str>>(s: S) -> impl Parser<char, char> {
 }
 
 pub fn whitespace(context: &mut ParseContext<char>) -> Result<char, ParseError> {
-  satisfy(|c: &char| c.is_whitespace()).parse(context)
+  ch(char::is_whitespace).parse(context)
 }
 
 pub fn parse<I, O>(input: &[I], parser: impl Parser<I, O>) -> Result<O, ParseError> {

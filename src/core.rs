@@ -192,15 +192,8 @@ pub fn upto<I, O>(upto: usize, parser: impl Parser<I, O>) -> impl Parser<I, Vec<
   }
 }
 
-pub fn default<I, O>(default: impl Fn() -> O + Clone, parser: impl Parser<I, O>) -> impl Parser<I, O> {
-  move |context: &mut ParseContext<I>| {
-    let position = context.position;
-    let result = parser.parse(context);
-    if result.is_ok() {
-      result
-    } else {
-      context.position = position;
-      Ok(default())
-    }
+pub fn just<I, O>(make: impl Fn() -> O + Clone) -> impl Parser<I, O> {
+  move |_: &mut ParseContext<I>| {
+    return Ok(make())
   }
 }
