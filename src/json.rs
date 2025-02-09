@@ -4,7 +4,14 @@ use std::collections::HashMap;
 #[derive(Debug, PartialEq, Clone)]
 pub enum JSON {
   String(String),
-  Number(String), // Yeah, not great, but good for our purposes here.
+  // We're interested in parsing JSON
+  // to test our combinators. We're not
+  // interested in things like JS-style
+  // number comparisons, etc.
+  //
+  // I'm not writing a JSON framework.
+  // This is a toy.
+  Number(String),
   Array(Vec<JSON>),
   Object(HashMap<String, JSON>),
   Null
