@@ -1,7 +1,8 @@
-#[derive(Debug, Clone, Copy, PartialEq)]
+
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ParseError {
   NoMatch(usize),
-  EndOfInput
+  End
 }
 
 pub struct ParseContext<'a, I> {
@@ -18,28 +19,60 @@ impl<'a, I> ParseContext<'a, I> {
     self.input.get(self.position)
   }
 
-  pub fn no_match<O>(&self) -> Result<O, ParseError> {
-    Err(ParseError::NoMatch(self.position))
-  }
-
   pub fn at_end(&self) -> bool {
     self.position >= self.input.len()
   }
+
+  pub fn err_no_match(&self) -> ParseError {
+    ParseError::NoMatch(self.position)
+  } 
 }
 
 pub trait Parser<I, O>: Clone {
-  fn parse(&self, context: &mut ParseContext<I>) -> Result<O, ParseError>;
-}
+  fn parse(&mut self, context: &mut ParseContext<I>) -> Result<O, ParseError>;
 
-impl<I, O, F: Clone> Parser<I, O> for F where F: Fn(&mut ParseContext<I>) -> Result<O, ParseError> {
-  fn parse(&self, context: &mut ParseContext<I>) -> Result<O, ParseError> {
-      self(context)
+  fn map<M>(self, f: impl FnMut(O) -> M + Clone) -> impl Parser<I, M> {
+    map(self, f)
+  }
+
+  fn many(self) -> impl Parser<I, Vec<O>> {
+    many(self)
+  }
+
+  fn or(self, second: impl Parser<I, O>) -> impl Parser<I, O> {
+    or(self, second)
+  }
+
+  fn peek(self) -> impl Parser<I, ()> {
+    peek(self)
+  }
+
+  fn followed_by<S>(self, follower: impl Parser<I, S>) -> impl Parser<I, O> {
+    first(self, follower)
+  }
+
+  fn preceded_by<F>(self, precedent: impl Parser<I, F>) -> impl Parser<I, O> {
+    second(precedent, self)
+  }
+
+  fn surrounded_by<S>(self, surrounder: impl Parser<I, S>) -> impl Parser<I, O> {
+    self.preceded_by(surrounder.clone()).followed_by(surrounder)
+  }
+
+  fn end(self) -> impl Parser<I, O> {
+    self.followed_by(end)
   }
 }
 
-/// The fundamental combinator. Applies `test` to an individual element, returning
-/// that element on success and `ParseError::NoMatch` on failure.
-pub fn satisfy<I: Clone>(test: impl Fn(&I) -> bool + Clone) -> impl Parser<I, I> {
+impl<I, O, F: Clone> Parser<I, O> for F
+  where F: FnMut(&mut ParseContext<I>) -> Result<O, ParseError>
+{
+  fn parse(&mut self, context: &mut ParseContext<I>) -> Result<O, ParseError> {
+    self(context)
+  }
+}
+
+pub fn satisfy<I: Clone>(mut test: impl FnMut(&I) -> bool + Clone) -> impl Parser<I, I> {
   move |context: &mut ParseContext<I>| {
     if let Some(i) = context.current() {
       if test(i) {
@@ -47,21 +80,42 @@ pub fn satisfy<I: Clone>(test: impl Fn(&I) -> bool + Clone) -> impl Parser<I, I>
         context.position += 1;
         Ok(i)
       } else {
-        context.no_match()
+        Err(context.err_no_match())
       }
     } else {
-      Err(ParseError::EndOfInput)
+      Err(ParseError::End)
     }
   }
 }
 
-pub fn map<I, O, M>(parser: impl Parser<I, O>, f: impl Fn(O) -> M + Clone) -> impl Parser<I, M> {
+pub fn map<I, O, M>(mut parser: impl Parser<I, O>, mut f: impl FnMut(O) -> M + Clone) -> impl Parser<I, M> {
   move |context: &mut ParseContext<I>| {
-    parser.parse(context).map(&f)
+    parser.parse(context).map(&mut f)
   }
 }
 
-pub fn or<I, O>(first: impl Parser<I, O>, second: impl Parser<I, O>) -> impl Parser<I, O> {
+pub fn chains<I, O>(mut first: impl Parser<I, Vec<O>>, mut second: impl Parser<I, Vec<O>>) -> impl Parser<I, Vec<O>> {
+  move |context: &mut ParseContext<I>| {
+    let mut outputs = Vec::new();
+    let output = first.parse(context)?;
+    outputs.extend(output);
+    let output = second.parse(context)?;
+    outputs.extend(output);
+    Ok(outputs)
+  }
+}
+
+pub fn many<I, O>(mut parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+  move |context: &mut ParseContext<I>| {
+    let mut outputs = Vec::new();
+    if let Ok(output) = parser.parse(context) {
+      outputs.push(output);
+    }
+    Ok(outputs)
+  }
+}
+
+pub fn or<I, O>(mut first: impl Parser<I, O>, mut second: impl Parser<I, O>) -> impl Parser<I, O> {
   move |context: &mut ParseContext<I>| {
     let position = context.position;
     first.parse(context).or_else(|_| {
@@ -71,89 +125,52 @@ pub fn or<I, O>(first: impl Parser<I, O>, second: impl Parser<I, O>) -> impl Par
   }
 }
 
-pub fn chains<I, O>(first: impl Parser<I, Vec<O>>, second: impl Parser<I, Vec<O>>) -> impl Parser<I, Vec<O>> {
+/// Matches both parsers in order, but returns the value of only the first.
+pub fn first<I, O, S>(mut first: impl Parser<I, O>, mut second: impl Parser<I, S>) -> impl Parser<I, O> {
   move |context: &mut ParseContext<I>| {
-    first.parse(context).and_then(|first_output| {
-      second.parse(context).map(|second_output| {
-        let mut output = first_output;
-        output.extend(second_output);
-        output
-      })
-    })
+    let output = first.parse(context)?;
+    second.parse(context)?;
+    Ok(output)
   }
 }
 
-pub fn many<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+/// Matches both parsers in order, but returns the value of only the second. 
+pub fn second<I, O, S>(mut first: impl Parser<I, O>, mut second: impl Parser<I, S>) -> impl Parser<I, S> {
   move |context: &mut ParseContext<I>| {
-    let mut outputs = Vec::new();
-    while let Ok(output) = parser.parse(context) {
-      outputs.push(output);
-    }
-    Ok(outputs)
+    first.parse(context)?;
+    second.parse(context)
   }
 }
 
-pub fn first<I, F, S>(first: impl Parser<I, F>, second: impl Parser<I, S>) -> impl Parser<I, F> {
-  move |context: &mut ParseContext<I>| {
-    first.parse(context).and_then(|output| {
-      second.parse(context).map(|_| output)
-    })
-  }
-}
-
-#[macro_export]
-macro_rules! first {
-  ($parser:expr) => { $parser };
-  ($parser:expr, $($rest:expr),+) => {
-    first($parser, first!($($rest),+))
-  }
-}
-
-pub fn second<I, F, S>(first: impl Parser<I, F>, second: impl Parser<I, S>) -> impl Parser<I, S> {
-  move |context: &mut ParseContext<I>| {
-    first.parse(context).and_then(|_| second.parse(context))
-  }
-}
-
-#[macro_export]
-macro_rules! last {
-  ($parser:expr) => { $parser };
-  ($parser:expr, $($rest:expr),+) => {
-    second($parser, last!($($rest),+))
-  }
-}
-
-pub fn peek<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, ()> {
+pub fn peek<I, O>(mut parser: impl Parser<I, O>) -> impl Parser<I, ()> {
   move |context: &mut ParseContext<I>| {
     let position = context.position;
-    parser.parse(context).map(|_| {
+    let result = parser.parse(context);
+    if result.is_ok() {
       context.position = position;
-      ()
-    })
-  }
-}
-
-pub fn not<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, ()> {
-  move |context: &mut ParseContext<I>| {
-    let position = context.position;
-    match parser.parse(context) {
-      Ok(_) => {
-        context.position = position;
-        context.no_match()
-      },
-      Err(_) => {
-        context.position = position;
-        Ok(())
-      }
+      Ok(())
+    } else {
+      Err(context.err_no_match())
     }
   }
 }
 
-pub fn end<I>(context: &mut ParseContext<I>) -> Result<(), ParseError> {
-  if context.at_end() {
-    Ok(())
-  } else {
-    context.no_match()
+pub fn not<I, O>(mut parser: impl Parser<I, O>) -> impl Parser<I, ()> {
+  move |context: &mut ParseContext<I>| {
+    let position = context.position;
+    let result = parser.parse(context);
+    if result.is_ok() {
+      Err(context.err_no_match())
+    } else {
+      context.position = position;
+      Ok(())
+    }
+  }
+}
+
+pub fn just<I, O>(mut value: impl FnMut() -> O + Clone) -> impl Parser<I, O> {
+  move |_: &mut ParseContext<I>| {
+    Ok(value())
   }
 }
 
@@ -161,39 +178,40 @@ pub fn any<I: Clone>(context: &mut ParseContext<I>) -> Result<I, ParseError> {
   if let Some(i) = context.current() {
     Ok(i.clone())
   } else {
-    Err(ParseError::EndOfInput)
+    Err(ParseError::End)
   }
 }
 
-pub fn count<I, O>(count: usize, parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
-  move |context: &mut ParseContext<I>| {
-    let mut outputs = Vec::new();
-    while outputs.len() < count {
-      let output = parser.parse(context)?;
-      outputs.push(output);
+pub fn end<I>(context: &mut ParseContext<I>) -> Result<(), ParseError> {
+  if context.at_end() {
+    Ok(())
+  } else {
+    Err(context.err_no_match())
+  }
+}
+
+pub fn flatten<I, O>(parser: impl Parser<I, Vec<Vec<O>>>) -> impl Parser<I, Vec<O>> {
+  map(parser, |outputs| {
+    let mut output = Vec::new();
+    for elem in outputs {
+      output.extend(elem);
     }
-    Ok(outputs)
+    output
+  })
+}
+
+pub trait FlattenParser<I, O>: Parser<I, Vec<Vec<O>>> {
+  fn flatten(self) -> impl Parser<I, Vec<O>> {
+   flatten(self)
   }
 }
 
-pub fn upto<I, O>(upto: usize, parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
-  move |context: &mut ParseContext<I>| {
-    let mut outputs = Vec::new();
-    while outputs.len() < upto {
-      let position = context.position;
-      if let Ok(output) = parser.parse(context) {
-        outputs.push(output)
-      } else {
-        context.position = position;
-        break
-      }
-    }
-    Ok(outputs)
+impl<I, O, P> FlattenParser<I, O> for P where P: Parser<I, Vec<Vec<O>>> {}
+
+pub trait StringParser<I>: Parser<I, Vec<char>> {
+  fn to_string(self) -> impl Parser<I, String> {
+    map(self, |chars| chars.into_iter().collect())
   }
 }
 
-pub fn just<I, O>(make: impl Fn() -> O + Clone) -> impl Parser<I, O> {
-  move |_: &mut ParseContext<I>| {
-    return Ok(make())
-  }
-}
+impl<I, P> StringParser<I> for P where P: Parser<I, Vec<char>> {}
