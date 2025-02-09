@@ -4,8 +4,8 @@ use std::collections::HashMap;
 #[derive(Debug, PartialEq, Clone)]
 pub enum JSON {
   String(String),
-  Array(Box<Vec<JSON>>),
-  Object(Box<HashMap<String, JSON>>),
+  Array(Vec<JSON>),
+  Object(HashMap<String, JSON>),
   Null
 }
 
@@ -55,7 +55,7 @@ fn jarray(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
     .many_sep(eq(',').whitespaced())
     .whitespaced()
     .bracketed()
-    .map(|js| JSON::Array(Box::new(js)))
+    .map(|js| JSON::Array(js))
     .parse(context)
 }
 
@@ -76,7 +76,7 @@ fn jobject(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   for (key, value) in pairs {
     object.insert(key, value);
   }
-  Ok(JSON::Object(Box::new(object)))
+  Ok(JSON::Object(object))
 }
 
 pub fn jnull(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
@@ -101,7 +101,7 @@ macro_rules! ja {
     $(
       array.push($json.into());
     )*
-    JSON::Array(Box::new(array))
+    JSON::Array(array)
   }}
 }
 
@@ -113,7 +113,7 @@ macro_rules! jo {
     $(
       object.insert($key.into(), $json.into());
     )*
-    JSON::Object(Box::new(object))
+    JSON::Object(object)
   }}
 }
 
@@ -140,7 +140,7 @@ mod tests {
   fn parse_jarray_empty() {
     let s = r#"[]"#;
     let r = parse_str(s, json.end());
-    assert_eq!(r, Ok(JSON::Array(Box::new(Vec::new()))))
+    assert_eq!(r, Ok(JSON::Array(Vec::new())))
   }
 
   #[test]
