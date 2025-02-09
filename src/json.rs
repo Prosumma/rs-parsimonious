@@ -4,6 +4,7 @@ use std::collections::HashMap;
 #[derive(Debug, PartialEq, Clone)]
 pub enum JSON {
   String(String),
+  Number(String), // Yeah, not great, but good for our purposes here.
   Array(Vec<JSON>),
   Object(HashMap<String, JSON>),
   Null
@@ -50,6 +51,23 @@ fn jstring(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   quoted_string.map(JSON::String).parse(context)
 }
 
+fn digit(context: &mut ParseContext<char>) -> Result<char, ParseError> {
+  satisfy(|c: &char| c.is_ascii_digit()).parse(context)
+}
+
+fn sign(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
+  or(eq('-').to_vec(), just(Vec::new)).parse(context)
+}
+
+fn jnumber(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+  let digits = digit.many1();
+  let fractional = or(
+    chains(eq('.').to_vec(), digits.clone()),
+    just(Vec::new)
+  );
+  chains!(sign, digits, fractional).to_string().map(JSON::Number).parse(context)
+}
+
 fn jarray(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   json
     .many_sep(eq(',').whitespaced())
@@ -84,7 +102,7 @@ pub fn jnull(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
 }
 
 pub fn json(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
-  or!(jstring, jarray, jobject, jnull).whitespaced().parse(context)
+  or!(jstring, jnumber, jarray, jobject, jnull).whitespaced().parse(context)
 }
 
 impl From<&str> for JSON {
@@ -115,6 +133,11 @@ macro_rules! jo {
     )*
     JSON::Object(object)
   }}
+}
+
+#[macro_export]
+macro_rules! jn {
+  ($s:expr) => { JSON::Number($s.into()) }
 }
 
 #[cfg(test)]
@@ -159,9 +182,23 @@ mod tests {
 
   #[test]
   fn parse_jobject() {
-    let s = r#"{"s": "string\n", "a": []}"#;
+    let s = r#"{"s": "string\n", "a": [], "n": null, "i": 38.3}"#;
     let r = parse_str(s, json.end());
-    assert_eq!(r, Ok(jo!{"s" => "string\n", "a" => ja![]}))
+    assert_eq!(r, Ok(jo!{"s" => "string\n", "a" => ja![], "n" => JSON::Null, "i" => jn!("38.3")}))
+  }
+
+  #[test]
+  fn parse_integer() {
+    let s = "-947362";
+    let r = parse_str(s, json.end());
+    assert_eq!(r, Ok(jn!("-947362")));
+  }
+
+  #[test]
+  fn parse_float() {
+    let s = "947362.32";
+    let r = parse_str(s, json.end());
+    assert_eq!(r, Ok(jn!("947362.32")));
   }
 
   #[test]

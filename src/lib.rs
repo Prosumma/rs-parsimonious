@@ -13,6 +13,14 @@ macro_rules! or {
 }
 
 #[macro_export]
+macro_rules! chains {
+  ($parser:expr) => { $parser };
+  ($parser:expr, $($rest:expr),+) => {
+    chains($parser, chains!($($rest),+))
+  };
+}
+
+#[macro_export]
 macro_rules! chain {
   ($parser:expr) => { to_vec($parser) };
   ($parser:expr, $($rest:expr),+) => {

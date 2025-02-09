@@ -108,9 +108,12 @@ pub fn chains<I, O>(mut first: impl Parser<I, Vec<O>>, mut second: impl Parser<I
 pub fn many<I, O>(mut parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
   move |context: &mut ParseContext<I>| {
     let mut outputs = Vec::new();
-    if let Ok(output) = parser.parse(context) {
+    let mut position = context.position;
+    while let Ok(output) = parser.parse(context) {
+      position = context.position;
       outputs.push(output);
     }
+    context.position = position;
     Ok(outputs)
   }
 }
