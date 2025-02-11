@@ -118,6 +118,32 @@ pub fn many<I, O>(mut parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
   }
 }
 
+pub fn count<I, O>(count: usize, mut parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+  move |context: &mut ParseContext<I>| {
+    let mut outputs = Vec::new();
+    while outputs.len() < count {
+      outputs.push(parser.parse(context)?);
+    }
+    Ok(outputs)
+  }
+}
+
+pub fn upto<I, O>(upto: usize, mut parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+  move |context: &mut ParseContext<I>| {
+    let mut outputs = Vec::new();
+    while outputs.len() < upto {
+      let position = context.position;
+      if let Ok(output) = parser.parse(context) {
+        outputs.push(output);
+      } else {
+        context.position = position;
+        break
+      }
+    }
+    Ok(outputs)
+  }
+}
+
 pub fn or<I, O>(mut first: impl Parser<I, O>, mut second: impl Parser<I, O>) -> impl Parser<I, O> {
   move |context: &mut ParseContext<I>| {
     let position = context.position;

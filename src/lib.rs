@@ -3,6 +3,7 @@ pub mod json;
 
 #[allow(unused_imports)]
 pub use core::*;
+use std::ops::RangeInclusive;
 
 #[macro_export]
 macro_rules! or {
@@ -63,8 +64,8 @@ pub fn eq_str<S: AsRef<str>>(s: S, case_sensitive: bool) -> impl Parser<char, Ve
   let chars: Vec<char> = s.as_ref().chars().collect();
   move |context: &mut ParseContext<char>| {
     let mut string = Vec::new();
-    for c in &chars {
-      let mut parser = eq_char(*c, case_sensitive);
+    for &c in &chars {
+      let mut parser = eq_char(c, case_sensitive);
       string.push(parser.parse(context)?);
     }
     Ok(string)
@@ -83,6 +84,10 @@ pub fn to_vec<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
   map(parser, |output| vec![output])
 }
 
+pub fn optional<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+  or(parser.to_vec(), just(Vec::new))
+}
+
 pub fn many1<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
   chains(to_vec(parser.clone()), many(parser))
 }
@@ -93,6 +98,11 @@ pub fn many1_sep<I, O, S>(parser: impl Parser<I, O>, sep: impl Parser<I, S>) -> 
 
 pub fn many_sep<I, O, S>(parser: impl Parser<I, O>, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
   or(many1_sep(parser, sep), just(Vec::new))
+}
+
+pub fn range<I, O>(range: RangeInclusive<usize>, parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+  let required = range.end() - range.start();
+  chains(upto(*range.start(), parser.clone()), count(required, parser))
 }
 
 pub trait ExtParser<I, O>: Parser<I, O> {
