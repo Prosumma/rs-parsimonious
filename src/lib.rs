@@ -1,7 +1,6 @@
 mod core;
 pub mod json;
 
-#[allow(unused_imports)]
 pub use core::*;
 use std::ops::RangeInclusive;
 
@@ -101,8 +100,10 @@ pub fn many_sep<I, O, S>(parser: impl Parser<I, O>, sep: impl Parser<I, S>) -> i
 }
 
 pub fn range<I, O>(range: RangeInclusive<usize>, parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
-  let required = range.end() - range.start();
-  chains(upto(*range.start(), parser.clone()), count(required, parser))
+  chains(
+    count(*range.start(), parser.clone()), 
+    upto(range.end() - range.start(), parser)
+  )
 }
 
 pub trait ExtParser<I, O>: Parser<I, O> {
@@ -120,6 +121,18 @@ pub trait ExtParser<I, O>: Parser<I, O> {
 
   fn many1_sep<S>(self, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
     many1_sep(self, sep)
+  }
+
+  fn upto(self, limit: usize) -> impl Parser<I, Vec<O>> {
+    upto(limit, self)
+  }
+
+  fn count(self, limit: usize) -> impl Parser<I, Vec<O>> {
+    count(limit, self)
+  }
+
+  fn range(self, bounds: RangeInclusive<usize>) -> impl Parser<I, Vec<O>> {
+    range(bounds, self)
   }
 }
 
@@ -169,4 +182,49 @@ pub fn parse<I, O>(input: &[I], mut parser: impl Parser<I, O>) -> Result<O, Pars
 pub fn parse_str<O, S: AsRef<str>>(input: S, parser: impl Parser<char, O>) -> Result<O, ParseError> {
   let chars: Vec<char> = input.as_ref().chars().into_iter().collect();
   parse(&chars, parser)
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn upto_works() {
+    let s = "aa";
+    let p = eq('a').upto(3).to_string(); 
+    let r = parse_str(s, p.end());
+    assert_eq!(r, Ok(s.to_string()))
+  }
+
+  #[test]
+  fn count_works() {
+    let s = "aaa";
+    let p = eq('a').count(3).to_string(); 
+    let r = parse_str(s, p.end());
+    assert_eq!(r, Ok(s.to_string()))
+  }
+
+  #[test]
+  fn count_fails_appropriately() {
+    let s = "aak";
+    let p = eq('a').count(3).to_string(); 
+    let r = parse_str(s, p.end());
+    assert_eq!(r, Err(ParseError::NoMatch(2)))
+  }
+
+  #[test]
+  fn range_works() {
+    let s = "aaa";
+    let p = eq('a').range(1..=4).to_string();
+    let r = parse_str(s, p.end());
+    assert_eq!(r, Ok(s.to_string()))
+  }
+
+  #[test]
+  fn range_fails_appropriately() {
+    let s = "ak";
+    let p = eq('a').range(2..=4).to_string();
+    let r = parse_str(s, p.end());
+    assert_eq!(r, Err(ParseError::NoMatch(1))) 
+  }
 }
