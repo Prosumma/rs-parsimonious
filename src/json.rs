@@ -20,14 +20,36 @@ pub enum JSON {
 fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, ParseError> {
   let mut output = String::new();
   let mut escaping = false;
+  let mut unicode: Option<String> = None;
   while let Some(&c) = context.current() {
-    if escaping {
+    if let Some(ref mut u) = unicode {
+      if c.is_ascii_hexdigit() {
+        u.push(c);
+        if u.len() == 4 {
+          // We know this is safe because of is_ascii_hexdigit.
+          let code_point = u32::from_str_radix(&u, 16).unwrap();
+          if let Some(unichar) = char::from_u32(code_point) {
+            output.push(unichar);
+            unicode = None;
+          } else {
+            return Err(context.err_no_match())
+          }
+        }
+      } else {
+        return Err(context.err_no_match())
+      }
+    } else if escaping {
       match c {
         '\\' => output.push(c),
         '"'  => output.push(c),
+        '/'  => output.push(c),
         'n'  => output.push('\n'),
         't'  => output.push('\t'),
-        _    => return Err(context.err_no_match())
+        'r'  => output.push('\r'),
+        'b'  => output.push('\x08'),
+        'f'  => output.push('\x0C'),
+        'u'  => unicode = Some(String::new()),
+         _   => return Err(context.err_no_match())
       }
       escaping = false
     } else if c == '"' {
@@ -171,6 +193,13 @@ mod tests {
     let s = r#""Odysseus""#;
     let r = parse_str(s, json.end());
     assert_eq!(r, Ok(JSON::String("Odysseus".to_owned())))
+  }
+
+  #[test]
+  fn parse_unicode() {
+    let s = "\"\\u0023e\""; 
+    let r = parse_str(s, json.end());
+    assert_eq!(r, Ok(JSON::String("#e".to_owned())))
   }
 
   #[test]
