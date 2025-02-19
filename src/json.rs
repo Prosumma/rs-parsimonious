@@ -203,9 +203,9 @@ mod tests {
 
   #[test]
   fn parse_jobject() {
-    let s = r#"{"s": "string\n", "a": [], "n": null, "i": 38.3}"#;
+    let s = r#"{"s": "string\n", "a": [], "n": null, "i": 38.3E2, "z": 0e0}"#;
     let r = parse_str(s, json.end());
-    assert_eq!(r, Ok(jo!{"s" => "string\n", "a" => ja![], "n" => JSON::Null, "i" => jn!("38.3")}))
+    assert_eq!(r, Ok(jo!{"s" => "string\n", "a" => ja![], "n" => JSON::Null, "i" => jn!("38.3E2"), "z" => jn!("0e0")}))
   }
 
   #[test]
@@ -224,9 +224,9 @@ mod tests {
 
   #[test]
   fn parse_exponent() {
-    let s = "947362.32e4";
+    let s = "947362.32e-4";
     let r = parse_str(s, json.end());
-    assert_eq!(r, Ok(jn!("947362.32e4")));
+    assert_eq!(r, Ok(jn!("947362.32e-4")));
   }
 
   #[test]
