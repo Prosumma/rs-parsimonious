@@ -111,6 +111,10 @@ pub trait ExtParser<I, O>: Parser<I, O> {
     to_vec(self)
   }
 
+  fn optional(self) -> impl Parser<I, Vec<O>> {
+    optional(self)
+  }
+
   fn many_sep<S>(self, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
     many_sep(self, sep)
   }
@@ -173,6 +177,18 @@ pub trait CharParser<O>: Parser<char, O> {
 }
 
 impl<O, P> CharParser<O> for P where P: Parser<char, O> {}
+
+pub fn maybe<I, O>(parser: impl Parser<I, Vec<O>>) -> impl Parser<I, Vec<O>> {
+  or(parser, just(Vec::new))
+}
+
+pub trait VecParser<I, O>: Parser<I, Vec<O>> {
+  fn maybe(self) -> impl Parser<I, Vec<O>> {
+    maybe(self)
+  }
+}
+
+impl<I, O, P> VecParser<I, O> for P where P: Parser<I, Vec<O>> {}
 
 pub fn parse<I, O>(input: &[I], mut parser: impl Parser<I, O>) -> Result<O, ParseError> {
   let mut context = ParseContext::new(input);

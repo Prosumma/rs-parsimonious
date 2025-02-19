@@ -62,17 +62,31 @@ fn digit(context: &mut ParseContext<char>) -> Result<char, ParseError> {
   satisfy(|c: &char| c.is_ascii_digit()).parse(context)
 }
 
+fn non_zero_digit(context: &mut ParseContext<char>) -> Result<char, ParseError> {
+  one_of_str("123456789", false).parse(context)
+}
+
 fn sign(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
-  or(eq('-').to_vec(), just(Vec::new)).parse(context)
+  eq('-').optional().parse(context)
+}
+
+fn integer(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
+  let non_zero = chains(non_zero_digit.many1(), digit.many());
+  or(eq('0').to_vec(), non_zero).parse(context)
+}
+
+fn decimal(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
+  let fractional = chains(eq('.').to_vec(), digit.many1()).maybe();
+  chains(integer, fractional).parse(context)
+}
+
+fn exponent(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
+  let e = eq_char('e', false);
+  chains!(e.to_vec(), sign, integer).parse(context)
 }
 
 fn jnumber(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
-  let digits = digit.many1();
-  let fractional = or(
-    chains(eq('.').to_vec(), digits.clone()),
-    just(Vec::new)
-  );
-  chains!(sign, digits, fractional).to_string().map(JSON::Number).parse(context)
+  chains!(sign, decimal, exponent.maybe()).to_string().map(JSON::Number).parse(context)
 }
 
 fn jarray(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
@@ -206,6 +220,13 @@ mod tests {
     let s = "947362.32";
     let r = parse_str(s, json.end());
     assert_eq!(r, Ok(jn!("947362.32")));
+  }
+
+  #[test]
+  fn parse_exponent() {
+    let s = "947362.32e4";
+    let r = parse_str(s, json.end());
+    assert_eq!(r, Ok(jn!("947362.32e4")));
   }
 
   #[test]
