@@ -94,7 +94,7 @@ fn jarray(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
     .many_sep(eq(',').whitespaced())
     .whitespaced()
     .bracketed()
-    .map(|js| JSON::Array(js))
+    .map(JSON::Array)
     .parse(context)
 }
 
