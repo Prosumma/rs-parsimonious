@@ -14,6 +14,7 @@ pub enum JSON {
   Number(String),
   Array(Vec<JSON>),
   Object(HashMap<String, JSON>),
+  Bool(bool),
   Null
 }
 
@@ -140,12 +141,24 @@ fn jobject(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   Ok(JSON::Object(object))
 }
 
-pub fn jnull(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+fn jtrue(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+  string("true").map(|_| JSON::Bool(true)).parse(context)
+}
+
+fn jfalse(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+  string("false").map(|_| JSON::Bool(false)).parse(context)
+}
+
+fn jbool(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+  or(jtrue, jfalse).parse(context)
+}
+
+fn jnull(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   string("null").to_string().map(|_| JSON::Null).parse(context)
 }
 
 pub fn json(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
-  or!(jstring, jnumber, jarray, jobject, jnull).whitespaced().parse(context)
+  or!(jstring, jnumber, jbool, jarray, jobject, jnull).whitespaced().parse(context)
 }
 
 impl From<&str> for JSON {
