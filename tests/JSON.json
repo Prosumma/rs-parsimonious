@@ -1,39 +1,62 @@
 {
-  "string": "This is a normal string",
-  "escapedString": "Escaped characters: \" \b \f \n \r \t \u1234",
-  "integer": 42,
-  "negativeInteger": -42,
-  "float": 3.14159,
-  "negativeFloat": -3.14159,
-  "scientificNotation": 1e10,
-  "negativeScientificNotation": -1e-10,
-  "booleanTrue": true,
-  "booleanFalse": false,
-  "nullValue": null,
-  "emptyArray": [],
-  "array": [1, "string", true, null, 3.14],
-  "nestedArray": [1, [2, [3, [4, 5]]]],
-  "emptyObject": {},
-  "object": {
-    "key": "value",
+  "stringTest": "This is a string with special characters: \" \\ \b \f \n \r \t \u1234",
+  "numberTest": 12345678901234567890,
+  "floatTest": 3.141592653589793,
+  "booleanTest": true,
+  "nullTest": null,
+  "arrayTest": [
+    1,
+    "two",
+    true,
+    null,
+    {
+      "nestedArray": [1, 2, 3, 4, 5]
+    }
+  ],
+  "objectTest": {
     "nestedObject": {
-      "nestedKey": "nestedValue"
+      "deeplyNested": {
+        "evenDeeper": {
+          "key": "value"
+        }
+      }
     }
   },
-  "complexObject": {
-    "array": [1, 2, 3],
-    "boolean": true,
-    "null": null
-  },
-  "deepNesting": {
+  "largeArray": [
+    "item1",
+    "item2",
+    "item3",
+    "item4",
+    "item5"
+  ],
+  "escapedCharacters": "Line1\nLine2\tTabbed\\Backslash\"Quoted",
+  "unicodeTest": "\u0032 \u0A0F",
+  "emptyArray": [],
+  "emptyObject": {},
+  "mixedArray": [
+    42,
+    "hello",
+    true,
+    null,
+    {
+      "key": "value"
+    }
+  ],
+  "nestedDepth": {
     "level1": {
       "level2": {
         "level3": {
           "level4": {
-            "level5": "This is deeply nested"
+            "level5": "deepValue"
           }
         }
       }
     }
+  },
+  "boundaryNumbers": {
+    "intMax": 9223372036854775807,
+    "intMin": -9223372036854775808,
+    "floatMax": 1.7976931348623157e+308,
+    "floatMin": 2.2250738585072014e-308
   }
 }

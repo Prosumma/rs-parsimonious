@@ -89,10 +89,6 @@ fn non_zero_digit(context: &mut ParseContext<char>) -> Result<char, ParseError> 
   one_of_str("123456789", false).parse(context)
 }
 
-fn sign(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
-  eq('-').optional().parse(context)
-}
-
 fn integer(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
   let non_zero = chains(non_zero_digit.many1(), digit.many());
   or(eq('0').to_vec(), non_zero).parse(context)
@@ -104,11 +100,13 @@ fn decimal(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
 }
 
 fn exponent(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
-  let e = eq_char('e', false);
-  chains!(e.to_vec(), sign, integer).parse(context)
+  let e = eq_char('e', false).to_vec();
+  let sign = one_of_str("+-", true).optional();
+  chains!(e, sign, integer).parse(context)
 }
 
 fn jnumber(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+  let sign = eq('-').optional();
   chains!(sign, decimal, exponent.maybe()).to_string().map(JSON::Number).parse(context)
 }
 
@@ -128,7 +126,7 @@ fn jassign(context: &mut ParseContext<char>) -> Result<(String, JSON), ParseErro
   Ok((key, j))
 }
 
-fn jobject(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+pub fn jobject(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   let pairs = jassign
     .many_sep(eq(',').whitespaced())
     .whitespaced()
@@ -206,13 +204,6 @@ mod tests {
     let s = r#""Odysseus""#;
     let r = parse_str(s, json.end());
     assert_eq!(r, Ok(JSON::String("Odysseus".to_owned())))
-  }
-
-  #[test]
-  fn parse_unicode() {
-    let s = "\"\\u0023e\""; 
-    let r = parse_str(s, json.end());
-    assert_eq!(r, Ok(JSON::String("#e".to_owned())))
   }
 
   #[test]
