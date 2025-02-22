@@ -78,6 +78,24 @@ impl<I, O, F: Clone> Parser<I, O> for F
   }
 }
 
+pub fn end<I>(context: &mut ParseContext<I>) -> Result<(), ParseError> {
+  if let Some(_) = context.current() {
+    context.throw_no_match()
+  } else {
+    Ok(())
+  }
+}
+
+pub fn any<I: Clone>(context: &mut ParseContext<I>) -> Result<I, ParseError> {
+  if let Some(i) = context.current() {
+    let i = i.clone();
+    context.position += 1;
+    Ok(i)
+  } else {
+    context.throw_end()
+  }
+}
+
 pub fn satisfy<I: Clone>(mut test: impl FnMut(&I) -> bool + Clone) -> impl Parser<I, I> {
   move |context: &mut ParseContext<I>| {
     if let Some(i) = context.current() {
@@ -135,6 +153,32 @@ pub fn many<I, O>(mut parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
           context.position = position;
           break
         } 
+      }
+    }
+    Ok(outputs)
+  }
+}
+
+pub fn count<I, O>(count: usize, mut parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+  move |context: &mut ParseContext<I>| {
+    let mut outputs = Vec::new();
+    while outputs.len() < count {
+      outputs.push(parser.parse(context)?);
+    }
+    Ok(outputs)
+  }
+}
+
+pub fn upto<I, O>(upto: usize, mut parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+  move |context: &mut ParseContext<I>| {
+    let mut outputs = Vec::new();
+    while outputs.len() < upto {
+      let position = context.position;
+      if let Ok(output) = parser.parse(context) {
+        outputs.push(output);
+      } else {
+        context.position = position;
+        break
       }
     }
     Ok(outputs)
