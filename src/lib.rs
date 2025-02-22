@@ -1,6 +1,7 @@
 mod core;
 
 pub use core::*;
+use std::ops::RangeInclusive;
 
 #[macro_export]
 macro_rules! or {
@@ -31,8 +32,24 @@ pub trait ExtParser<I, O>: Parser<I, O> {
     to_vec(self)
   }
 
+  fn many_sep<S>(self, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
+    many_sep(self, sep)
+  }
+
   fn many1(self) -> impl Parser<I, Vec<O>> {
     many1(self)
+  }
+
+  fn many1_sep<S>(self, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
+    many1_sep(self, sep)
+  }
+
+  fn optional(self) -> impl Parser<I, Vec<O>> {
+    optional(self)
+  }
+
+  fn range(self, r: RangeInclusive<usize>) -> impl Parser<I, Vec<O>> {
+    range(r, self)
   }
 }
 
@@ -116,6 +133,25 @@ pub trait StringParser<I>: Parser<I, Vec<char>> {
 }
 
 impl<I, P> StringParser<I> for P where P: Parser<I, Vec<char>> {}
+
+pub fn optional<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+  or(parser.to_vec(), just(Vec::new))
+}
+
+pub fn many1_sep<I, O, S>(parser: impl Parser<I, O>, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
+  chains(to_vec(parser.clone()), many(second(sep, parser)))
+}
+
+pub fn many_sep<I, O, S>(parser: impl Parser<I, O>, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
+  or(many1_sep(parser, sep), just(Vec::new))
+}
+
+pub fn range<I, O>(range: RangeInclusive<usize>, parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+  chains(
+    count(*range.start(), parser.clone()), 
+    upto(range.end() - range.start(), parser)
+  )
+}
 
 pub fn parse<I, O>(input: &[I], mut parser: impl Parser<I, O>) -> Result<O, ParseError> {
   let mut context = ParseContext::new(input);
