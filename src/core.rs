@@ -148,6 +148,9 @@ pub fn map<I, O, M>(mut parser: impl Parser<I, O>, mut f: impl FnMut(O) -> M + C
 /// It doesn't work so well for things like numbers, because a number matches
 /// digits until there are no more digits, and then says "I'm done". It expects
 /// the next parser (if any) to pick up after that.
+/// 
+/// However, it is possible to throw a partial match with a negative number, but
+/// only if the minus sign is followed immediately by a non-digit.
 pub fn partial<I, O>(mut parser: impl Parser<I, O>, at: usize) -> impl Parser<I, O> {
   move |context: &mut ParseContext<I>| {
     let initial_position = context.position;

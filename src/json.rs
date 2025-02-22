@@ -98,12 +98,12 @@ fn decimal(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
 fn exponent(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
   let e = eqchar('e', false).to_vec();
   let sign = one_of_str("+-", true).optional();
-  chains!(e, sign, integer).parse(context)
+  chains!(e, sign, integer).partial(1).parse(context)
 }
 
 fn jnumber(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   let sign = eq('-').optional();
-  chains!(sign, decimal, exponent.maybe()).to_string().map(JSON::Number).parse(context)
+  chains!(sign, decimal, exponent.maybe()).partial(1).to_string().map(JSON::Number).parse(context)
 }
 
 fn jarray(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
@@ -279,6 +279,20 @@ mod tests {
     let s = r#""foo"#;
     let r = parse_str(s, json.end());
     assert_eq!(r, Err(PartialMatch(4)))
+  }
+
+  #[test]
+  fn parse_partial_number() {
+    let s = "-a";
+    let r = parse_str(s, json.end());
+    assert_eq!(r, Err(PartialMatch(1)))
+  }
+
+  #[test]
+  fn parse_partial_exponent() {
+    let s = "-10e+a";
+    let r = parse_str(s, json.end());
+    assert_eq!(r, Err(PartialMatch(5)))
   }
 
   #[test]
