@@ -214,3 +214,24 @@ pub fn just<I, O>(mut make: impl FnMut() -> O + Clone) -> impl Parser<I, O> {
     Ok(make()) 
   }
 }
+
+pub fn peek<I, O>(mut parser: impl Parser<I, O>) -> impl Parser<I, ()> {
+  move |context: &mut ParseContext<I>| {
+    let position = context.position;
+    parser.parse(context).map(|_| {
+      context.position = position;
+    })
+  }
+}
+
+pub fn not<I, O>(mut parser: impl Parser<I, O>) -> impl Parser<I, ()> {
+  move |context: &mut ParseContext<I>| {
+    let position = context.position;
+    if parser.parse(context).is_err() {
+      context.position = position;
+      Ok(())
+    } else {
+      context.throw_no_match()
+    }
+  }
+}
