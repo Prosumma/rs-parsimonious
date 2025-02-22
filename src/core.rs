@@ -140,6 +140,10 @@ pub fn or<I, O>(mut first: impl Parser<I, O>, mut second: impl Parser<I, O>) -> 
         context.position = position;
         second.parse(context)
       },
+      Err(End) => {
+        context.position = position;
+        second.parse(context)
+      },
       other => other
     }
   }

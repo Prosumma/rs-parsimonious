@@ -81,21 +81,17 @@ fn jstring(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   quoted_string.map(JSON::String).parse(context)
 }
 
-fn digit(context: &mut ParseContext<char>) -> Result<char, ParseError> {
-  satisfy(|c: &char| c.is_ascii_digit()).parse(context)
-}
-
 fn non_zero_digit(context: &mut ParseContext<char>) -> Result<char, ParseError> {
   one_of_str("123456789", false).parse(context)
 }
 
 fn integer(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
-  let non_zero = chains(non_zero_digit.many1(), digit.many());
+  let non_zero = chains(non_zero_digit.many1(), ascii_digit.many());
   or(eq('0').to_vec(), non_zero).parse(context)
 }
 
 fn decimal(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
-  let fractional = chains(eq('.').to_vec(), digit.many1()).maybe();
+  let fractional = chains(eq('.').to_vec(), ascii_digit.many1()).maybe();
   chains(integer, fractional).parse(context)
 }
 
