@@ -33,11 +33,11 @@ fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, ParseErro
             output.push(unichar);
             unicode = None;
           } else {
-            return Err(context.err_no_match())
+            return context.throw_partial_match() 
           }
         }
       } else {
-        return Err(context.err_no_match())
+        return context.throw_partial_match() 
       }
     } else if escaping {
       match c {
@@ -50,7 +50,7 @@ fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, ParseErro
         'b'  => output.push('\x08'),
         'f'  => output.push('\x0C'),
         'u'  => unicode = Some(String::new()),
-         _   => return Err(context.err_no_match())
+         _   => return context.throw_partial_match() 
       }
       escaping = false
     } else if c == '"' {
@@ -67,7 +67,7 @@ fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, ParseErro
   // by itself never occurs in JSON. It is
   // always surrounded by quotes.
   if context.at_end() {
-    Err(ParseError::End)
+    context.throw_partial_match()
   } else {
     Ok(output)
   }
@@ -103,7 +103,7 @@ fn exponent(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
 
 fn jnumber(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   let sign = eq('-').optional();
-  chains!(sign, decimal, exponent.maybe()).partial(1).to_string().map(JSON::Number).parse(context)
+  chains!(sign, decimal, exponent.maybe()).to_string().map(JSON::Number).parse(context)
 }
 
 fn jarray(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
@@ -272,6 +272,13 @@ mod tests {
     let s = "numm";
     let r = parse_str(s, json.end());
     assert_eq!(r, Err(PartialMatch(2)))
+  }
+
+  #[test]
+  fn parse_partial_string() {
+    let s = r#""foo"#;
+    let r = parse_str(s, json.end());
+    assert_eq!(r, Err(PartialMatch(4)))
   }
 
   #[test]

@@ -1,5 +1,20 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ParseError {
+  /// A `PartialMatch` is always propagated.
+  /// 
+  /// If we start matching something and then 
+  /// discover that it's wrong, that's always
+  /// an error.
+  /// 
+  /// Consider JSON. If we match `{`, we know
+  /// we're in an object. If parsing fails,
+  /// there's no sense trying to match an array
+  /// or any other JSON type. We throw `PartialMatch`
+  /// and this bubbles up to the top.
+  /// 
+  /// `PartialMatch` is chiefly used by the `or`
+  /// and `many` combinators. When either of these
+  /// see `PartialMatch`, they raise it and bail.
   PartialMatch(usize),
   NoMatch(usize),
   End
