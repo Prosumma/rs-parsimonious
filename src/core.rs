@@ -1,4 +1,4 @@
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ParseError {
   PartialMatch(usize),
   NoMatch(usize),
@@ -19,6 +19,10 @@ impl<'a, I> ParseContext<'a, I> {
 
   pub fn current(&self) -> Option<&I> {
     self.input.get(self.position)
+  }
+
+  pub fn at_end(&self) -> bool {
+    self.position >= self.input.len()
   }
 
   pub fn err_partial_match(&self) -> ParseError {

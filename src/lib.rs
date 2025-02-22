@@ -1,4 +1,5 @@
 mod core;
+pub mod json;
 
 pub use core::*;
 use std::ops::RangeInclusive;
@@ -15,8 +16,24 @@ macro_rules! chains {
   ($parser:expr, $($rest:expr),+) => { chains($parser, chains!($($rest),+)) };
 }
 
+pub fn ch(mut test: impl FnMut(char) -> bool + Clone) -> impl Parser<char, char> {
+  satisfy(move |c: &char| test(*c)) 
+}
+
 pub fn eq<I: Clone + PartialEq>(model: I) -> impl Parser<I, I> {
   satisfy(move |i: &I| *i == model)
+}
+
+pub fn one_of<I: Clone + PartialEq>(choices: Vec<I>) -> impl Parser<I, I> {
+  satisfy(move |i: &I| choices.contains(i))
+}
+
+pub fn one_of_str<S: AsRef<str> + Clone>(string: S, case_sensitive: bool) -> impl Parser<char, char> {
+  let chars: Vec<char> = string.as_ref().chars().map(|c| if case_sensitive { c } else { c.to_ascii_lowercase() }).collect();
+  satisfy(move |c: &char| {
+    let c = if case_sensitive { *c } else { c.to_ascii_lowercase() };
+    chars.contains(&c)
+  })
 }
 
 pub fn to_vec<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
@@ -51,15 +68,29 @@ pub trait ExtParser<I, O>: Parser<I, O> {
   fn range(self, r: RangeInclusive<usize>) -> impl Parser<I, Vec<O>> {
     range(r, self)
   }
+
+  fn end(self) -> impl Parser<I, O> {
+    self.followed_by(end)
+  }
 }
 
 impl<I, O, P> ExtParser<I, O> for P where P: Parser<I, O> {}
 
+pub fn maybe<I, O>(parser: impl Parser<I, Vec<O>>) -> impl Parser<I, Vec<O>> {
+  or(parser, just(Vec::new))
+}
+
 pub trait VecParser<I, O>: Parser<I, Vec<O>> {
+  fn maybe(self) -> impl Parser<I, Vec<O>> {
+    maybe(self)
+  }
+
   fn chains(self, second: impl Parser<I, Vec<O>>) -> impl Parser<I, Vec<O>> {
     chains(self, second)
   }
 }
+
+impl<I, O, P> VecParser<I, O> for P where P: Parser<I, Vec<O>> {}
 
 pub fn eqchar(model: char, case_sensitive: bool) -> impl Parser<char, char> {
   satisfy(move |c: &char| {
@@ -146,12 +177,60 @@ pub fn many_sep<I, O, S>(parser: impl Parser<I, O>, sep: impl Parser<I, S>) -> i
   or(many1_sep(parser, sep), just(Vec::new))
 }
 
+pub fn surround<I, O, S>(parser: impl Parser<I, O>, sep: impl Parser<I, S>) -> impl Parser<I, O> {
+  second(sep.clone(), first(parser, sep))
+}
+
 pub fn range<I, O>(range: RangeInclusive<usize>, parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
   chains(
     count(*range.start(), parser.clone()), 
     upto(range.end() - range.start(), parser)
   )
 }
+
+pub fn whitespace(context: &mut ParseContext<char>) -> Result<char, ParseError> {
+  ch(char::is_whitespace).parse(context)
+}
+
+pub fn ascii_digit(context: &mut ParseContext<char>) -> Result<char, ParseError> {
+  satisfy(char::is_ascii_digit).parse(context)
+}
+
+fn delimit<O>(start: char, parser: impl Parser<char, O>, end: char) -> impl Parser<char, O> {
+  parser.preceded_by(eq(start)).followed_by(eq(end))
+}
+
+pub trait CharParser<O>: Parser<char, O> {
+  fn surrounded_by<S>(self, sep: impl Parser<char, S>) -> impl Parser<char, O> {
+    surround(self, sep)
+  }
+
+  fn whitespaced(self) -> impl Parser<char, O> {
+    surround(self, whitespace.many())
+  }
+
+  fn double_quoted(self) -> impl Parser<char, O> {
+    surround(self, eq('"'))
+  }
+
+  fn single_quoted(self) -> impl Parser<char, O> {
+    surround(self, eq('\''))
+  }
+
+  fn parenthesized(self) -> impl Parser<char, O> {
+    delimit('(', self, ')')
+  }
+
+  fn braced(self) -> impl Parser<char, O> {
+    delimit('{', self, '}')
+  }
+
+  fn bracketed(self) -> impl Parser<char, O> {
+    delimit('[', self, ']')
+  }
+}
+
+impl<O, P> CharParser<O> for P where P: Parser<char, O> {}
 
 pub fn parse<I, O>(input: &[I], mut parser: impl Parser<I, O>) -> Result<O, ParseError> {
   let mut context = ParseContext::new(input);
