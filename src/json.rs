@@ -81,33 +81,29 @@ fn jstring(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   quoted_string.map(JSON::String).parse(context)
 }
 
-fn digit(context: &mut ParseContext<char>) -> Result<char, ParseError> {
-  satisfy(|c: &char| c.is_ascii_digit()).parse(context)
-}
-
 fn non_zero_digit(context: &mut ParseContext<char>) -> Result<char, ParseError> {
   one_of_str("123456789", false).parse(context)
 }
 
 fn integer(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
-  let non_zero = chains(non_zero_digit.many1(), digit.many());
+  let non_zero = chains(non_zero_digit.many1(), ascii_digit.many());
   or(eq('0').to_vec(), non_zero).parse(context)
 }
 
 fn decimal(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
-  let fractional = chains(eq('.').to_vec(), digit.many1()).maybe();
+  let fractional = chains(eq('.').to_vec(), ascii_digit.many1()).maybe();
   chains(integer, fractional).parse(context)
 }
 
 fn exponent(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
-  let e = eq_char('e', false).to_vec();
+  let e = eqchar('e', false).to_vec();
   let sign = one_of_str("+-", true).optional();
   chains!(e, sign, integer).parse(context)
 }
 
 fn jnumber(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   let sign = eq('-').optional();
-  chains!(sign, decimal, exponent.maybe()).to_string().map(JSON::Number).parse(context)
+  chains!(sign, decimal, exponent.maybe()).partial(1).to_string().map(JSON::Number).parse(context)
 }
 
 fn jarray(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
@@ -115,6 +111,7 @@ fn jarray(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
     .many_sep(eq(',').whitespaced())
     .whitespaced()
     .bracketed()
+    .partial(1)
     .map(JSON::Array)
     .parse(context)
 }
@@ -131,6 +128,7 @@ pub fn jobject(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
     .many_sep(eq(',').whitespaced())
     .whitespaced()
     .braced()
+    .partial(1)
     .parse(context)?;
   let mut object = HashMap::new(); 
   for (key, value) in pairs {
@@ -140,11 +138,11 @@ pub fn jobject(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
 }
 
 fn jtrue(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
-  string("true").map(|_| JSON::Bool(true)).parse(context)
+  string("true").partial(1).map(|_| JSON::Bool(true)).parse(context)
 }
 
 fn jfalse(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
-  string("false").map(|_| JSON::Bool(false)).parse(context)
+  string("false").partial(1).map(|_| JSON::Bool(false)).parse(context)
 }
 
 fn jbool(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
@@ -152,7 +150,7 @@ fn jbool(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
 }
 
 fn jnull(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
-  string("null").to_string().map(|_| JSON::Null).parse(context)
+  string("null").partial(1).to_string().map(|_| JSON::Null).parse(context)
 }
 
 pub fn json(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
@@ -267,5 +265,19 @@ mod tests {
     let s = "null";
     let r = parse_str(s, json.end());
     assert_eq!(r, Ok(JSON::Null))
+  }
+
+  #[test]
+  fn parse_partial_null() {
+    let s = "numm";
+    let r = parse_str(s, json.end());
+    assert_eq!(r, Err(PartialMatch(2)))
+  }
+
+  #[test]
+  fn parse_partial_object() {
+    let s = r#"{"number": -734a}"#;
+    let r = parse_str(s, json.end());
+    assert_eq!(r, Err(PartialMatch(15)))
   }
 }
