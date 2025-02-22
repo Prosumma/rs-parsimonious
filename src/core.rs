@@ -13,7 +13,7 @@ pub struct ParseContext<'a, I> {
 }
 
 impl<'a, I> ParseContext<'a, I> {
-  pub fn new(input: &[I]) -> ParseContext<I> {
+  pub const fn new(input: &[I]) -> ParseContext<I> {
     ParseContext { input, position: 0 }
   }
 
@@ -53,8 +53,8 @@ pub trait Parser<I, O>: Clone {
     map(self, f)
   }
 
-  fn partial(self, after: usize) -> impl Parser<I, O> {
-    partial(self, after)
+  fn partial(self, at: usize) -> impl Parser<I, O> {
+    partial(self, at)
   }
 
   fn or(self, second: impl Parser<I, O>) -> impl Parser<I, O> {
@@ -122,11 +122,11 @@ pub fn map<I, O, M>(mut parser: impl Parser<I, O>, mut f: impl FnMut(O) -> M + C
   }
 }
 
-pub fn partial<I, O>(mut parser: impl Parser<I, O>, after: usize) -> impl Parser<I, O> {
+pub fn partial<I, O>(mut parser: impl Parser<I, O>, at: usize) -> impl Parser<I, O> {
   move |context: &mut ParseContext<I>| {
     let initial_position = context.position;
     match parser.parse(context) {
-      Err(NoMatch(err_position)) if err_position - initial_position > after => Err(PartialMatch(err_position)),
+      Err(NoMatch(err_position)) if err_position - initial_position >= at => Err(PartialMatch(err_position)),
       other => other
     }
   }

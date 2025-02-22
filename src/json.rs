@@ -110,8 +110,8 @@ fn jarray(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   json
     .many_sep(eq(',').whitespaced())
     .whitespaced()
-    .partial(1)
     .bracketed()
+    .partial(1)
     .map(JSON::Array)
     .parse(context)
 }
@@ -127,8 +127,8 @@ pub fn jobject(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   let pairs = jassign
     .many_sep(eq(',').whitespaced())
     .whitespaced()
-    .partial(1)
     .braced()
+    .partial(1)
     .parse(context)?;
   let mut object = HashMap::new(); 
   for (key, value) in pairs {
@@ -265,5 +265,19 @@ mod tests {
     let s = "null";
     let r = parse_str(s, json.end());
     assert_eq!(r, Ok(JSON::Null))
+  }
+
+  #[test]
+  fn parse_partial_null() {
+    let s = "numm";
+    let r = parse_str(s, json.end());
+    assert_eq!(r, Err(PartialMatch(2)))
+  }
+
+  #[test]
+  fn parse_partial_object() {
+    let s = r#"{"number": -734a}"#;
+    let r = parse_str(s, json.end());
+    assert_eq!(r, Err(PartialMatch(15)))
   }
 }

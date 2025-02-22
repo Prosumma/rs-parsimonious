@@ -205,6 +205,10 @@ pub trait CharParser<O>: Parser<char, O> {
     surround(self, sep)
   }
 
+  /// Surrounded by *optional* whitespace.
+  /// 
+  /// For required whitespace, just say
+  /// `parser.surrounded_by(whitespace.many1())`.
   fn whitespaced(self) -> impl Parser<char, O> {
     surround(self, whitespace.many())
   }
