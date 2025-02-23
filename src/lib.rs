@@ -16,6 +16,21 @@ macro_rules! chains {
   ($parser:expr, $($rest:expr),+) => { chains($parser, chains!($($rest),+)) };
 }
 
+pub fn void<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, ()> {
+  parser.map(|_| ())
+}
+
+#[macro_export]
+macro_rules! void {
+  ($parser:expr) => { void($parser) };
+  ($parser:expr, $($rest:expr),+) => { or(void($parser), void!($($rest),+))}
+}
+
+#[macro_export]
+macro_rules! peek {
+  ($($parser:expr),+) => { peek(void!($($parser),+)) }
+}
+
 pub fn ch(mut test: impl FnMut(char) -> bool + Clone) -> impl Parser<char, char> {
   satisfy(move |c: &char| test(*c)) 
 }

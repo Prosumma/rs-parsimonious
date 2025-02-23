@@ -74,7 +74,7 @@ fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, ParseErro
 }
 
 fn quoted_string(context: &mut ParseContext<char>) -> Result<String, ParseError> {
-  unquoted_string.double_quoted().parse(context)
+  unquoted_string.double_quoted().partial(1).parse(context)
 }
 
 fn jstring(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
@@ -102,8 +102,15 @@ fn exponent(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
 }
 
 fn jnumber(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+  // A valid number in JSON is followed by end of input, whitespace or one of comma, brace or bracket.
+  // This allows us to use partial more effectively.
   let sign = eq('-').optional();
-  chains!(sign, decimal, exponent.maybe()).partial(1).to_string().map(JSON::Number).parse(context)
+  chains!(sign, decimal, exponent.maybe())
+    .followed_by(peek!(end, one_of_str(",}]", true), whitespace))
+    .partial(1)
+    .to_string()
+    .map(JSON::Number)
+    .parse(context)
 }
 
 fn jarray(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
@@ -290,7 +297,7 @@ mod tests {
 
   #[test]
   fn parse_partial_exponent() {
-    let s = "-10e+a";
+    let s = "-1e13a";
     let r = parse_str(s, json.end());
     assert_eq!(r, Err(PartialMatch(5)))
   }
