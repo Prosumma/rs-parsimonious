@@ -106,7 +106,7 @@ fn jnumber(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   // This allows us to use partial more effectively.
   let sign = eq('-').optional();
   chains!(sign, decimal, exponent.maybe())
-    .followed_by(peek!(end, one_of_str(",}]", true), whitespace))
+    .followed_by(peek!(whitespace, one_of_str(",}]", true), end))
     .partial(1)
     .to_string()
     .map(JSON::Number)
