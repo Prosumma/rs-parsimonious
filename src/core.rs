@@ -1,5 +1,5 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ParseError {
+pub enum ParseError<E = ()> {
   /// A `PartialMatch` is always propagated.
   /// 
   /// If we start matching something and then 
@@ -17,7 +17,8 @@ pub enum ParseError {
   /// see `PartialMatch`, they raise it and bail.
   PartialMatch(usize),
   NoMatch(usize),
-  End
+  End,
+  Error(E)
 }
 
 pub use ParseError::*;
@@ -40,64 +41,64 @@ impl<'a, I> ParseContext<'a, I> {
     self.position >= self.input.len()
   }
 
-  pub fn err_partial_match(&self) -> ParseError {
+  pub fn err_partial_match<E>(&self) -> ParseError<E> {
     PartialMatch(self.position)
   }
 
-  pub fn err_no_match(&self) -> ParseError {
+  pub fn err_no_match<E>(&self) -> ParseError<E> {
     NoMatch(self.position)
   }
 
-  pub fn throw_partial_match<O>(&self) -> Result<O, ParseError> {
+  pub fn throw_partial_match<O, E>(&self) -> Result<O, ParseError<E>> {
     Err(self.err_partial_match())
   }
 
-  pub fn throw_no_match<O>(&self) -> Result<O, ParseError> {
+  pub fn throw_no_match<O, E>(&self) -> Result<O, ParseError<E>> {
     Err(self.err_no_match())
   }
 
-  pub fn throw_end<O>(&self) -> Result<O, ParseError> {
+  pub fn throw_end<O, E>(&self) -> Result<O, ParseError<E>> {
     Err(End)
   }
 }
 
-pub trait Parser<I, O>: Clone {
-  fn parse(&mut self, context: &mut ParseContext<I>) -> Result<O, ParseError>;
+pub trait Parser<I, O, E>: Clone {
+  fn parse(&mut self, context: &mut ParseContext<I>) -> Result<O, ParseError<E>>;
 
-  fn map<M>(self, f: impl FnMut(O) -> M + Clone) -> impl Parser<I, M> {
+  fn map<M>(self, f: impl FnMut(O) -> M + Clone) -> impl Parser<I, M, E> {
     map(self, f)
   }
 
-  fn partial(self, at: usize) -> impl Parser<I, O> {
+  fn partial(self, at: usize) -> impl Parser<I, O, E> {
     partial(self, at)
   }
 
-  fn or(self, second: impl Parser<I, O>) -> impl Parser<I, O> {
+  fn or(self, second: impl Parser<I, O, E>) -> impl Parser<I, O, E> {
     or(self, second)
   }
 
-  fn many(self) -> impl Parser<I, Vec<O>> {
+  fn many(self) -> impl Parser<I, Vec<O>, E> {
     many(self)
   }
 
-  fn preceded_by<F>(self, first: impl Parser<I, F>) -> impl Parser<I, O> {
+  fn preceded_by<F>(self, first: impl Parser<I, F, E>) -> impl Parser<I, O, E> {
     second(first, self)
   }
 
-  fn followed_by<S>(self, second: impl Parser<I, S>) -> impl Parser<I, O> {
+  fn followed_by<S>(self, second: impl Parser<I, S, E>) -> impl Parser<I, O, E> {
     first(self, second)
   }
 }
 
-impl<I, O, F: Clone> Parser<I, O> for F
-  where F: FnMut(&mut ParseContext<I>) -> Result<O, ParseError>
+impl<I, O, F: Clone, E> Parser<I, O, E> for F
+  where F: FnMut(&mut ParseContext<I>) -> Result<O, ParseError<E>>
 {
-  fn parse(&mut self, context: &mut ParseContext<I>) -> Result<O, ParseError> {
+  fn parse(&mut self, context: &mut ParseContext<I>) -> Result<O, ParseError<E>> {
     self(context)
   }
 }
 
-pub fn end<I>(context: &mut ParseContext<I>) -> Result<(), ParseError> {
+pub fn end<I, E>(context: &mut ParseContext<I>) -> Result<(), ParseError<E>> {
   if let Some(_) = context.current() {
     context.throw_no_match()
   } else {
@@ -105,7 +106,7 @@ pub fn end<I>(context: &mut ParseContext<I>) -> Result<(), ParseError> {
   }
 }
 
-pub fn any<I: Clone>(context: &mut ParseContext<I>) -> Result<I, ParseError> {
+pub fn any<I: Clone, E>(context: &mut ParseContext<I>) -> Result<I, ParseError<E>> {
   if let Some(i) = context.current() {
     let i = i.clone();
     context.position += 1;
@@ -115,7 +116,7 @@ pub fn any<I: Clone>(context: &mut ParseContext<I>) -> Result<I, ParseError> {
   }
 }
 
-pub fn satisfy<I: Clone>(mut test: impl FnMut(&I) -> bool + Clone) -> impl Parser<I, I> {
+pub fn satisfy<I: Clone, E>(mut test: impl FnMut(&I) -> bool + Clone) -> impl Parser<I, I, E> {
   move |context: &mut ParseContext<I>| {
     if let Some(i) = context.current() {
       if test(i) {
@@ -131,7 +132,7 @@ pub fn satisfy<I: Clone>(mut test: impl FnMut(&I) -> bool + Clone) -> impl Parse
   }
 }
 
-pub fn map<I, O, M>(mut parser: impl Parser<I, O>, mut f: impl FnMut(O) -> M + Clone) -> impl Parser<I, M> {
+pub fn map<I, O, E, M>(mut parser: impl Parser<I, O, E>, mut f: impl FnMut(O) -> M + Clone) -> impl Parser<I, M, E> {
   move |context: &mut ParseContext<I>| {
     parser.parse(context).map(&mut f)
   }
@@ -147,7 +148,7 @@ pub fn map<I, O, M>(mut parser: impl Parser<I, O>, mut f: impl FnMut(O) -> M + C
 ///
 /// There are also tricks that can be done when the matched value must be followed
 /// only by a few possible delimeters. (See `json::jnumber` for an example.)
-pub fn partial<I, O>(mut parser: impl Parser<I, O>, at: usize) -> impl Parser<I, O> {
+pub fn partial<I, O, E>(mut parser: impl Parser<I, O, E>, at: usize) -> impl Parser<I, O, E> {
   move |context: &mut ParseContext<I>| {
     let initial_position = context.position;
     match parser.parse(context) {
@@ -157,7 +158,7 @@ pub fn partial<I, O>(mut parser: impl Parser<I, O>, at: usize) -> impl Parser<I,
   }
 }
 
-pub fn or<I, O>(mut first: impl Parser<I, O>, mut second: impl Parser<I, O>) -> impl Parser<I, O> {
+pub fn or<I, O, E>(mut first: impl Parser<I, O, E>, mut second: impl Parser<I, O, E>) -> impl Parser<I, O, E> {
   move |context: &mut ParseContext<I>| {
     let position = context.position;
     match first.parse(context) {
@@ -174,7 +175,7 @@ pub fn or<I, O>(mut first: impl Parser<I, O>, mut second: impl Parser<I, O>) -> 
   }
 }
 
-pub fn many<I, O>(mut parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+pub fn many<I, O, E>(mut parser: impl Parser<I, O, E>) -> impl Parser<I, Vec<O>, E> {
   move |context: &mut ParseContext<I>| {
     let mut outputs = Vec::new();
     loop {
@@ -192,7 +193,7 @@ pub fn many<I, O>(mut parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
   }
 }
 
-pub fn count<I, O>(count: usize, mut parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+pub fn count<I, O, E>(count: usize, mut parser: impl Parser<I, O, E>) -> impl Parser<I, Vec<O>, E> {
   move |context: &mut ParseContext<I>| {
     let mut outputs = Vec::new();
     while outputs.len() < count {
@@ -202,7 +203,7 @@ pub fn count<I, O>(count: usize, mut parser: impl Parser<I, O>) -> impl Parser<I
   }
 }
 
-pub fn upto<I, O>(upto: usize, mut parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+pub fn upto<I, O, E>(upto: usize, mut parser: impl Parser<I, O, E>) -> impl Parser<I, Vec<O>, E> {
   move |context: &mut ParseContext<I>| {
     let mut outputs = Vec::new();
     while outputs.len() < upto {
@@ -218,7 +219,7 @@ pub fn upto<I, O>(upto: usize, mut parser: impl Parser<I, O>) -> impl Parser<I, 
   }
 }
 
-pub fn chains<I, O>(mut first: impl Parser<I, Vec<O>>, mut second: impl Parser<I, Vec<O>>) -> impl Parser<I, Vec<O>> {
+pub fn chains<I, O, E>(mut first: impl Parser<I, Vec<O>, E>, mut second: impl Parser<I, Vec<O>, E>) -> impl Parser<I, Vec<O>, E> {
   move |context: &mut ParseContext<I>| {
     let mut first_output = first.parse(context)?;
     let second_output = second.parse(context)?;
@@ -227,7 +228,7 @@ pub fn chains<I, O>(mut first: impl Parser<I, Vec<O>>, mut second: impl Parser<I
   }
 }
 
-pub fn first<I, F, S>(mut first: impl Parser<I, F>, mut second: impl Parser<I, S>) -> impl Parser<I, F> {
+pub fn first<I, F, S, E>(mut first: impl Parser<I, F, E>, mut second: impl Parser<I, S, E>) -> impl Parser<I, F, E> {
   move |context: &mut ParseContext<I>| {
     let first_output = first.parse(context)?;
     second.parse(context)?;
@@ -235,20 +236,20 @@ pub fn first<I, F, S>(mut first: impl Parser<I, F>, mut second: impl Parser<I, S
   }
 }
 
-pub fn second<I, F, S>(mut first: impl Parser<I, F>, mut second: impl Parser<I, S>) -> impl Parser<I, S> {
+pub fn second<I, F, S, E>(mut first: impl Parser<I, F, E>, mut second: impl Parser<I, S, E>) -> impl Parser<I, S, E> {
   move |context: &mut ParseContext<I>| {
     first.parse(context)?;
     second.parse(context)
   }
 }
 
-pub fn just<I, O>(mut make: impl FnMut() -> O + Clone) -> impl Parser<I, O> {
+pub fn just<I, O, E>(mut make: impl FnMut() -> O + Clone) -> impl Parser<I, O, E> {
   move |_: &mut ParseContext<I>| {
     Ok(make()) 
   }
 }
 
-pub fn peek<I, O>(mut parser: impl Parser<I, O>) -> impl Parser<I, ()> {
+pub fn peek<I, O, E>(mut parser: impl Parser<I, O, E>) -> impl Parser<I, (), E> {
   move |context: &mut ParseContext<I>| {
     let position = context.position;
     parser.parse(context).map(|_| {
@@ -257,7 +258,7 @@ pub fn peek<I, O>(mut parser: impl Parser<I, O>) -> impl Parser<I, ()> {
   }
 }
 
-pub fn not<I, O>(mut parser: impl Parser<I, O>) -> impl Parser<I, ()> {
+pub fn not<I, O, E>(mut parser: impl Parser<I, O, E>) -> impl Parser<I, (), E> {
   move |context: &mut ParseContext<I>| {
     let position = context.position;
     if parser.parse(context).is_err() {

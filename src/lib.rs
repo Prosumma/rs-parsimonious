@@ -16,7 +16,7 @@ macro_rules! chains {
   ($parser:expr, $($rest:expr),+) => { chains($parser, chains!($($rest),+)) };
 }
 
-pub fn void<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, ()> {
+pub fn void<I, O, E>(parser: impl Parser<I, O, E>) -> impl Parser<I, (), E> {
   parser.map(|_| ())
 }
 
@@ -31,19 +31,19 @@ macro_rules! peek {
   ($($parser:expr),+) => { peek(void!($($parser),+)) }
 }
 
-pub fn ch(mut test: impl FnMut(char) -> bool + Clone) -> impl Parser<char, char> {
+pub fn ch<E>(mut test: impl FnMut(char) -> bool + Clone) -> impl Parser<char, char, E> {
   satisfy(move |c: &char| test(*c)) 
 }
 
-pub fn eq<I: Clone + PartialEq>(model: I) -> impl Parser<I, I> {
+pub fn eq<I: Clone + PartialEq, E>(model: I) -> impl Parser<I, I, E> {
   satisfy(move |i: &I| *i == model)
 }
 
-pub fn one_of<I: Clone + PartialEq>(choices: Vec<I>) -> impl Parser<I, I> {
+pub fn one_of<I: Clone + PartialEq, E>(choices: Vec<I>) -> impl Parser<I, I, E> {
   satisfy(move |i: &I| choices.contains(i))
 }
 
-pub fn one_of_str<S: AsRef<str> + Clone>(string: S, case_sensitive: bool) -> impl Parser<char, char> {
+pub fn one_of_str<S: AsRef<str> + Clone, E>(string: S, case_sensitive: bool) -> impl Parser<char, char, E> {
   let chars: Vec<char> = string.as_ref().chars().map(|c| if case_sensitive { c } else { c.to_ascii_lowercase() }).collect();
   satisfy(move |c: &char| {
     let c = if case_sensitive { *c } else { c.to_ascii_lowercase() };
@@ -51,63 +51,63 @@ pub fn one_of_str<S: AsRef<str> + Clone>(string: S, case_sensitive: bool) -> imp
   })
 }
 
-pub fn to_vec<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+pub fn to_vec<I, O, E>(parser: impl Parser<I, O, E>) -> impl Parser<I, Vec<O>, E> {
   map(parser, |output| vec![output])
 }
 
-pub fn many1<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+pub fn many1<I, O, E>(parser: impl Parser<I, O, E>) -> impl Parser<I, Vec<O>, E> {
   chains(to_vec(parser.clone()), many(parser))
 }
 
-pub trait ExtParser<I, O>: Parser<I, O> {
-  fn to_vec(self) -> impl Parser<I, Vec<O>> {
+pub trait ExtParser<I, O, E>: Parser<I, O, E> {
+  fn to_vec(self) -> impl Parser<I, Vec<O>, E> {
     to_vec(self)
   }
 
-  fn many_sep<S>(self, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
+  fn many_sep<S>(self, sep: impl Parser<I, S, E>) -> impl Parser<I, Vec<O>, E> {
     many_sep(self, sep)
   }
 
-  fn many1(self) -> impl Parser<I, Vec<O>> {
+  fn many1(self) -> impl Parser<I, Vec<O>, E> {
     many1(self)
   }
 
-  fn many1_sep<S>(self, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
+  fn many1_sep<S>(self, sep: impl Parser<I, S, E>) -> impl Parser<I, Vec<O>, E> {
     many1_sep(self, sep)
   }
 
-  fn optional(self) -> impl Parser<I, Vec<O>> {
+  fn optional(self) -> impl Parser<I, Vec<O>, E> {
     optional(self)
   }
 
-  fn range(self, r: RangeInclusive<usize>) -> impl Parser<I, Vec<O>> {
+  fn range(self, r: RangeInclusive<usize>) -> impl Parser<I, Vec<O>, E> {
     range(r, self)
   }
 
-  fn end(self) -> impl Parser<I, O> {
+  fn end(self) -> impl Parser<I, O, E> {
     self.followed_by(end)
   }
 }
 
-impl<I, O, P> ExtParser<I, O> for P where P: Parser<I, O> {}
+impl<I, O, E, P> ExtParser<I, O, E> for P where P: Parser<I, O, E> {}
 
-pub fn maybe<I, O>(parser: impl Parser<I, Vec<O>>) -> impl Parser<I, Vec<O>> {
+pub fn maybe<I, O, E>(parser: impl Parser<I, Vec<O>, E>) -> impl Parser<I, Vec<O>, E> {
   or(parser, just(Vec::new))
 }
 
-pub trait VecParser<I, O>: Parser<I, Vec<O>> {
-  fn maybe(self) -> impl Parser<I, Vec<O>> {
+pub trait VecParser<I, O, E>: Parser<I, Vec<O>, E> {
+  fn maybe(self) -> impl Parser<I, Vec<O>, E> {
     maybe(self)
   }
 
-  fn chains(self, second: impl Parser<I, Vec<O>>) -> impl Parser<I, Vec<O>> {
+  fn chains(self, second: impl Parser<I, Vec<O>, E>) -> impl Parser<I, Vec<O>, E> {
     chains(self, second)
   }
 }
 
-impl<I, O, P> VecParser<I, O> for P where P: Parser<I, Vec<O>> {}
+impl<I, O, E, P> VecParser<I, O, E> for P where P: Parser<I, Vec<O>, E> {}
 
-pub fn eqchar(model: char, case_sensitive: bool) -> impl Parser<char, char> {
+pub fn eqchar<E>(model: char, case_sensitive: bool) -> impl Parser<char, char, E> {
   satisfy(move |c: &char| {
     if case_sensitive {
       *c == model
@@ -117,7 +117,7 @@ pub fn eqchar(model: char, case_sensitive: bool) -> impl Parser<char, char> {
   })
 }
 
-pub fn eqstr<S: AsRef<str>>(model: S, case_sensitive: bool) -> impl Parser<char, Vec<char>> {
+pub fn eqstr<S: AsRef<str>, E>(model: S, case_sensitive: bool) -> impl Parser<char, Vec<char>, E> {
   let chars: Vec<char> = model.as_ref().chars().collect();
   move |context: &mut ParseContext<char>| {
     let mut output = Vec::new();
@@ -128,11 +128,11 @@ pub fn eqstr<S: AsRef<str>>(model: S, case_sensitive: bool) -> impl Parser<char,
   }
 }
 
-pub fn string<S: AsRef<str>>(model: S) -> impl Parser<char, Vec<char>> {
+pub fn string<S: AsRef<str>, E>(model: S) -> impl Parser<char, Vec<char>, E> {
   eqstr(model, true)
 }
 
-pub fn flatten<I, O>(mut parser: impl Parser<I, Vec<Vec<O>>>) -> impl Parser<I, Vec<O>> {
+pub fn flatten<I, O, E>(mut parser: impl Parser<I, Vec<Vec<O>>, E>) -> impl Parser<I, Vec<O>, E> {
   move |context: &mut ParseContext<I>| {
     let mut output = Vec::new();
     let intermediates = parser.parse(context)?;
@@ -143,15 +143,15 @@ pub fn flatten<I, O>(mut parser: impl Parser<I, Vec<Vec<O>>>) -> impl Parser<I, 
   }
 }
 
-pub trait FlattenParser<I, O>: Parser<I, Vec<Vec<O>>> {
-  fn flatten(self) -> impl Parser<I, Vec<O>> {
+pub trait FlattenParser<I, O, E>: Parser<I, Vec<Vec<O>>, E> {
+  fn flatten(self) -> impl Parser<I, Vec<O>, E> {
     flatten(self)
   }
 }
 
-impl<I, O, P> FlattenParser<I, O> for P where P: Parser<I, Vec<Vec<O>>> {}
+impl<I, O, E, P> FlattenParser<I, O, E> for P where P: Parser<I, Vec<Vec<O>>, E> {}
 
-pub fn join<I>(mut first: impl Parser<I, String>, mut second: impl Parser<I, String>) -> impl Parser<I, String> {
+pub fn join<I, E>(mut first: impl Parser<I, String, E>, mut second: impl Parser<I, String, E>) -> impl Parser<I, String, E> {
   move |context: &mut ParseContext<I>| {
     let mut first_string = first.parse(context)?;
     let second_string = second.parse(context)?;
@@ -168,55 +168,55 @@ macro_rules! join {
   };
 }
 
-pub fn to_string<I>(parser: impl Parser<I, Vec<char>>) -> impl Parser<I, String> {
+pub fn to_string<I, E>(parser: impl Parser<I, Vec<char>, E>) -> impl Parser<I, String, E> {
   parser.map(|output| output.into_iter().collect())
 }
 
-pub trait StringParser<I>: Parser<I, Vec<char>> {
-  fn to_string(self) -> impl Parser<I, String> {
+pub trait StringParser<I, E>: Parser<I, Vec<char>, E> {
+  fn to_string(self) -> impl Parser<I, String, E> {
     to_string(self)
   }
 }
 
-impl<I, P> StringParser<I> for P where P: Parser<I, Vec<char>> {}
+impl<I, E, P> StringParser<I, E> for P where P: Parser<I, Vec<char>, E> {}
 
-pub fn optional<I, O>(parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+pub fn optional<I, O, E>(parser: impl Parser<I, O, E>) -> impl Parser<I, Vec<O>, E> {
   or(parser.to_vec(), just(Vec::new))
 }
 
-pub fn many1_sep<I, O, S>(parser: impl Parser<I, O>, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
+pub fn many1_sep<I, O, S, E>(parser: impl Parser<I, O, E>, sep: impl Parser<I, S, E>) -> impl Parser<I, Vec<O>, E> {
   chains(to_vec(parser.clone()), many(second(sep, parser)))
 }
 
-pub fn many_sep<I, O, S>(parser: impl Parser<I, O>, sep: impl Parser<I, S>) -> impl Parser<I, Vec<O>> {
+pub fn many_sep<I, O, S, E>(parser: impl Parser<I, O, E>, sep: impl Parser<I, S, E>) -> impl Parser<I, Vec<O>, E> {
   or(many1_sep(parser, sep), just(Vec::new))
 }
 
-pub fn surround<I, O, S>(parser: impl Parser<I, O>, sep: impl Parser<I, S>) -> impl Parser<I, O> {
+pub fn surround<I, O, S, E>(parser: impl Parser<I, O, E>, sep: impl Parser<I, S, E>) -> impl Parser<I, O, E> {
   second(sep.clone(), first(parser, sep))
 }
 
-pub fn range<I, O>(range: RangeInclusive<usize>, parser: impl Parser<I, O>) -> impl Parser<I, Vec<O>> {
+pub fn range<I, O, E>(range: RangeInclusive<usize>, parser: impl Parser<I, O, E>) -> impl Parser<I, Vec<O>, E> {
   chains(
     count(*range.start(), parser.clone()), 
     upto(range.end() - range.start(), parser)
   )
 }
 
-pub fn whitespace(context: &mut ParseContext<char>) -> Result<char, ParseError> {
+pub fn whitespace<E>(context: &mut ParseContext<char>) -> Result<char, ParseError<E>> {
   ch(char::is_whitespace).parse(context)
 }
 
-pub fn ascii_digit(context: &mut ParseContext<char>) -> Result<char, ParseError> {
+pub fn ascii_digit<E>(context: &mut ParseContext<char>) -> Result<char, ParseError<E>> {
   satisfy(char::is_ascii_digit).parse(context)
 }
 
-fn delimit<O>(start: char, parser: impl Parser<char, O>, end: char) -> impl Parser<char, O> {
+fn delimit<O, E>(start: char, parser: impl Parser<char, O, E>, end: char) -> impl Parser<char, O, E> {
   parser.preceded_by(eq(start)).followed_by(eq(end))
 }
 
-pub trait CharParser<O>: Parser<char, O> {
-  fn surrounded_by<S>(self, sep: impl Parser<char, S>) -> impl Parser<char, O> {
+pub trait CharParser<O, E>: Parser<char, O, E> {
+  fn surrounded_by<S>(self, sep: impl Parser<char, S, E>) -> impl Parser<char, O, E> {
     surround(self, sep)
   }
 
@@ -224,39 +224,39 @@ pub trait CharParser<O>: Parser<char, O> {
   /// 
   /// For required whitespace, just say
   /// `parser.surrounded_by(whitespace.many1())`.
-  fn whitespaced(self) -> impl Parser<char, O> {
+  fn whitespaced(self) -> impl Parser<char, O, E> {
     surround(self, whitespace.many())
   }
 
-  fn double_quoted(self) -> impl Parser<char, O> {
+  fn double_quoted(self) -> impl Parser<char, O, E> {
     surround(self, eq('"'))
   }
 
-  fn single_quoted(self) -> impl Parser<char, O> {
+  fn single_quoted(self) -> impl Parser<char, O, E> {
     surround(self, eq('\''))
   }
 
-  fn parenthesized(self) -> impl Parser<char, O> {
+  fn parenthesized(self) -> impl Parser<char, O, E> {
     delimit('(', self, ')')
   }
 
-  fn braced(self) -> impl Parser<char, O> {
+  fn braced(self) -> impl Parser<char, O, E> {
     delimit('{', self, '}')
   }
 
-  fn bracketed(self) -> impl Parser<char, O> {
+  fn bracketed(self) -> impl Parser<char, O, E> {
     delimit('[', self, ']')
   }
 }
 
-impl<O, P> CharParser<O> for P where P: Parser<char, O> {}
+impl<O, E, P> CharParser<O, E> for P where P: Parser<char, O, E> {}
 
-pub fn parse<I, O>(input: &[I], mut parser: impl Parser<I, O>) -> Result<O, ParseError> {
+pub fn parse<I, O, E>(input: &[I], mut parser: impl Parser<I, O, E>) -> Result<O, ParseError<E>> {
   let mut context = ParseContext::new(input);
   parser.parse(&mut context)
 }
 
-pub fn parse_str<S: AsRef<str>, O>(input: S, parser: impl Parser<char, O>) -> Result<O, ParseError> {
+pub fn parse_str<S: AsRef<str>, O, E>(input: S, parser: impl Parser<char, O, E>) -> Result<O, ParseError<E>> {
   let chars: Vec<char> = input.as_ref().chars().collect();
   parse(&chars, parser)
 }
