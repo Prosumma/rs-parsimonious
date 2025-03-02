@@ -18,6 +18,7 @@ pub enum ParseError<E = ()> {
   PartialMatch(usize),
   NoMatch(usize),
   End,
+  /// An unrecoverable custom error
   Error(E)
 }
 
@@ -182,7 +183,6 @@ pub fn many<I, O, E>(mut parser: impl Parser<I, O, E>) -> impl Parser<I, Vec<O>,
       let position = context.position;
       match parser.parse(context) {
         Ok(output) => outputs.push(output),
-        Err(PartialMatch(err_position)) => return Err(PartialMatch(err_position)),
         _ => {
           context.position = position;
           break
