@@ -17,7 +17,7 @@ pub enum ParseError<E = ()> {
   /// see `PartialMatch`, they raise it and bail.
   PartialMatch(usize),
   NoMatch(usize),
-  End,
+  End(usize),
   /// An unrecoverable custom error
   Error(E)
 }
@@ -42,6 +42,10 @@ impl<'a, I> ParseContext<'a, I> {
     self.position >= self.input.len()
   }
 
+  pub fn err_end<E>(&self) -> ParseError<E> {
+    End(self.position)
+  }
+
   pub fn err_partial_match<E>(&self) -> ParseError<E> {
     PartialMatch(self.position)
   }
@@ -50,16 +54,16 @@ impl<'a, I> ParseContext<'a, I> {
     NoMatch(self.position)
   }
 
+  pub fn throw_end<O, E>(&self) -> Result<O, ParseError<E>> {
+    Err(self.err_end())
+  }
+
   pub fn throw_partial_match<O, E>(&self) -> Result<O, ParseError<E>> {
     Err(self.err_partial_match())
   }
 
   pub fn throw_no_match<O, E>(&self) -> Result<O, ParseError<E>> {
     Err(self.err_no_match())
-  }
-
-  pub fn throw_end<O, E>(&self) -> Result<O, ParseError<E>> {
-    Err(End)
   }
 }
 
@@ -154,7 +158,7 @@ pub fn partial<I, O, E>(mut parser: impl Parser<I, O, E>, at: usize) -> impl Par
     let initial_position = context.position;
     match parser.parse(context) {
       Err(NoMatch(err_position)) if err_position - initial_position >= at => Err(PartialMatch(err_position)),
-      Err(End) if context.position - initial_position >= at => context.throw_partial_match(), 
+      Err(End(err_position)) if err_position - initial_position >= at => Err(PartialMatch(err_position)),
       other => other
     }
   }
@@ -168,7 +172,7 @@ pub fn or<I, O, E>(mut first: impl Parser<I, O, E>, mut second: impl Parser<I, O
         context.position = position;
         second.parse(context)
       },
-      Err(End) => {
+      Err(End(_)) => {
         context.position = position;
         second.parse(context)
       },
