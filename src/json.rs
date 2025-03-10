@@ -18,7 +18,40 @@ pub enum JSON {
   Null
 }
 
-fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, ParseError> {
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum JSONToken {
+  String,
+  Number,
+  Array,
+  Object,
+  Bool,
+  Null
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct JSONTokenError {
+  pub token: JSONToken,
+  pub start: usize,
+  pub position: usize
+}
+
+pub type JSONError = ParseError<JSONTokenError>;
+
+pub trait JSONParser<I, O>: Parser<I, O, JSONTokenError> {
+  fn map_err(mut self, token: JSONToken) -> impl Parser<I, O, JSONTokenError> {
+    move |context: &mut ParseContext<I>| {
+      let start = context.position;
+      match self.parse(context) {
+        Err(PartialMatch(position)) => Err(Error(JSONTokenError{token, start, position})),
+        other => other
+      }      
+    }
+  }
+}
+
+impl<I, O, P> JSONParser<I, O> for P where P: Parser<I, O, JSONTokenError> {}
+
+fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, JSONError> {
   let mut output = String::new();
   let mut escaping = false;
   let mut unicode: Option<String> = None;
@@ -73,35 +106,35 @@ fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, ParseErro
   }
 }
 
-fn quoted_string(context: &mut ParseContext<char>) -> Result<String, ParseError> {
+fn quoted_string(context: &mut ParseContext<char>) -> Result<String, JSONError> {
   unquoted_string.double_quoted().partial(1).parse(context)
 }
 
-fn jstring(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
-  quoted_string.map(JSON::String).parse(context)
+fn jstring(context: &mut ParseContext<char>) -> Result<JSON, JSONError> {
+  quoted_string.map(JSON::String).map_err(JSONToken::String).parse(context)
 }
 
-fn non_zero_digit(context: &mut ParseContext<char>) -> Result<char, ParseError> {
+fn non_zero_digit(context: &mut ParseContext<char>) -> Result<char, JSONError> {
   one_of_str("123456789", false).parse(context)
 }
 
-fn integer(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
+fn integer(context: &mut ParseContext<char>) -> Result<Vec<char>, JSONError> {
   let non_zero = chains(non_zero_digit.many1(), ascii_digit.many());
   or(eq('0').to_vec(), non_zero).parse(context)
 }
 
-fn decimal(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
+fn decimal(context: &mut ParseContext<char>) -> Result<Vec<char>, JSONError> {
   let fractional = chains(eq('.').to_vec(), ascii_digit.many1()).maybe();
   chains(integer, fractional).parse(context)
 }
 
-fn exponent(context: &mut ParseContext<char>) -> Result<Vec<char>, ParseError> {
+fn exponent(context: &mut ParseContext<char>) -> Result<Vec<char>, JSONError> {
   let e = eqchar('e', false).to_vec();
   let sign = one_of_str("+-", true).optional();
   chains!(e, sign, integer).partial(1).parse(context)
 }
 
-fn jnumber(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+fn jnumber(context: &mut ParseContext<char>) -> Result<JSON, JSONError> {
   // A valid number in JSON is followed by end of input, whitespace or one of comma, brace or bracket.
   // This allows us to use partial more effectively.
   let sign = eq('-').optional();
@@ -110,32 +143,35 @@ fn jnumber(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
     .partial(1)
     .to_string()
     .map(JSON::Number)
+    .map_err(JSONToken::Number)
     .parse(context)
 }
 
-fn jarray(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+fn jarray(context: &mut ParseContext<char>) -> Result<JSON, JSONError> {
   json
     .many_sep(eq(',').whitespaced())
     .whitespaced()
     .bracketed()
     .partial(1)
     .map(JSON::Array)
+    .map_err(JSONToken::Array)
     .parse(context)
 }
 
-fn jassign(context: &mut ParseContext<char>) -> Result<(String, JSON), ParseError> {
+fn jassign(context: &mut ParseContext<char>) -> Result<(String, JSON), JSONError> {
   let key = quoted_string.parse(context)?;
   eq(':').whitespaced().parse(context)?;
   let j = json.parse(context)?;
   Ok((key, j))
 }
 
-pub fn jobject(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+pub fn jobject(context: &mut ParseContext<char>) -> Result<JSON, JSONError> {
   let pairs = jassign
     .many_sep(eq(',').whitespaced())
     .whitespaced()
     .braced()
     .partial(1)
+    .map_err(JSONToken::Object)
     .parse(context)?;
   let mut object = HashMap::new(); 
   for (key, value) in pairs {
@@ -144,23 +180,23 @@ pub fn jobject(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
   Ok(JSON::Object(object))
 }
 
-fn jtrue(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+fn jtrue(context: &mut ParseContext<char>) -> Result<JSON, JSONError> {
   string("true").partial(1).map(|_| JSON::Bool(true)).parse(context)
 }
 
-fn jfalse(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+fn jfalse(context: &mut ParseContext<char>) -> Result<JSON, JSONError> {
   string("false").partial(1).map(|_| JSON::Bool(false)).parse(context)
 }
 
-fn jbool(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
-  or(jtrue, jfalse).parse(context)
+fn jbool(context: &mut ParseContext<char>) -> Result<JSON, JSONError> {
+  or(jtrue, jfalse).map_err(JSONToken::Bool).parse(context)
 }
 
-fn jnull(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
-  string("null").partial(1).to_string().map(|_| JSON::Null).parse(context)
+fn jnull(context: &mut ParseContext<char>) -> Result<JSON, JSONError> {
+  string("null").partial(1).to_string().map(|_| JSON::Null).map_err(JSONToken::Null).parse(context)
 }
 
-pub fn json(context: &mut ParseContext<char>) -> Result<JSON, ParseError> {
+pub fn json(context: &mut ParseContext<char>) -> Result<JSON, JSONError> {
   or!(jstring, jnumber, jbool, jarray, jobject, jnull).whitespaced().parse(context)
 }
 
@@ -278,34 +314,35 @@ mod tests {
   fn parse_partial_null() {
     let s = "numm";
     let r = parse_str(s, json.end());
-    assert_eq!(r, Err(PartialMatch(2)))
+    assert_eq!(r, Err(Error(JSONTokenError { token: JSONToken::Null, start: 0, position: 2 }))) 
   }
 
   #[test]
   fn parse_partial_string() {
     let s = r#""foo"#;
     let r = parse_str(s, json.end());
-    assert_eq!(r, Err(PartialMatch(4)))
+    assert_eq!(r, Err(Error(JSONTokenError { token: JSONToken::String, start: 0, position: 4 }))) 
   }
 
   #[test]
   fn parse_partial_number() {
     let s = "-a";
     let r = parse_str(s, json.end());
-    assert_eq!(r, Err(PartialMatch(1)))
+    assert_eq!(r, Err(Error(JSONTokenError { token: JSONToken::Number, start: 0, position: 1 }))) 
   }
 
   #[test]
   fn parse_partial_exponent() {
     let s = "-1e13a";
     let r = parse_str(s, json.end());
-    assert_eq!(r, Err(PartialMatch(5)))
+    assert_eq!(r, Err(Error(JSONTokenError { token: JSONToken::Number, start: 0, position: 5 }))) 
   }
 
   #[test]
   fn parse_partial_object() {
-    let s = r#"{"number": -734a}"#;
+    let s = r#"{ "#;
     let r = parse_str(s, json.end());
-    assert_eq!(r, Err(PartialMatch(15)))
+    assert_eq!(r, Err(Error(JSONTokenError { token: JSONToken::Object, start: 0, position: 2 }))) 
   }
+
 }

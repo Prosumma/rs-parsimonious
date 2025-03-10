@@ -154,6 +154,7 @@ pub fn partial<I, O, E>(mut parser: impl Parser<I, O, E>, at: usize) -> impl Par
     let initial_position = context.position;
     match parser.parse(context) {
       Err(NoMatch(err_position)) if err_position - initial_position >= at => Err(PartialMatch(err_position)),
+      Err(End) if context.position - initial_position >= at => context.throw_partial_match(), 
       other => other
     }
   }

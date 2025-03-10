@@ -10,5 +10,6 @@ fn json_sanity_check() {
   let path = Path::new("tests/JSON.json");
   let contents = fs::read_to_string(path).expect("JSON file is missing.");
   let output = parse_str(contents, json.end());
+  println!("{:?}", output);
   assert!(output.is_ok())
 }
