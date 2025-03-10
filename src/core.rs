@@ -1,7 +1,7 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PartialMatchReason {
   NoMatch,
-  End
+  End,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -9,7 +9,7 @@ pub enum ParseErrorReason<E = ()> {
   PartialMatch(PartialMatchReason),
   NoMatch,
   End,
-  Error(E)
+  Error(E),
 }
 
 pub use ParseErrorReason::*;
@@ -17,7 +17,7 @@ pub use ParseErrorReason::*;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ParseError<E = ()> {
   pub reason: ParseErrorReason<E>,
-  pub position: usize
+  pub position: usize,
 }
 
 impl<E> ParseError<E> {
@@ -28,7 +28,7 @@ impl<E> ParseError<E> {
 
 pub struct ParseContext<'a, I> {
   input: &'a [I],
-  pub position: usize
+  pub position: usize,
 }
 
 impl<'a, I> ParseContext<'a, I> {
@@ -181,7 +181,7 @@ pub fn or<I, O, E>(mut first: impl Parser<I, O, E>, mut second: impl Parser<I, O
         context.position = position;
         second.parse(context)
       },
-      other => other
+      other => other,
     }
   }
 }
@@ -196,7 +196,7 @@ pub fn many<I, O, E>(mut parser: impl Parser<I, O, E>) -> impl Parser<I, Vec<O>,
         _ => {
           context.position = position;
           break
-        } 
+        }, 
       }
     }
     Ok(outputs)
