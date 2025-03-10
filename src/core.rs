@@ -6,10 +6,20 @@ pub enum PartialMatchReason {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ParseErrorReason<E = ()> {
-  PartialMatch(PartialMatchReason),
   NoMatch,
   End,
+  PartialMatch(PartialMatchReason),
   Error(E),
+}
+
+impl<E> ParseErrorReason<E> {
+  pub fn is_partial(&self) -> bool {
+    match self {
+      PartialMatch(_) => true,
+      Error(_) => true,
+      _ => false,
+    }
+  }
 }
 
 pub use ParseErrorReason::*;
@@ -23,6 +33,10 @@ pub struct ParseError<E = ()> {
 impl<E> ParseError<E> {
   pub fn new(reason: ParseErrorReason<E>, position: usize) -> ParseError<E> {
     ParseError { reason, position }
+  }
+
+  pub fn is_partial(&self) -> bool {
+    self.reason.is_partial()
   }
 }
 
@@ -193,8 +207,7 @@ pub fn many<I, O, E>(mut parser: impl Parser<I, O, E>) -> impl Parser<I, Vec<O>,
       let position = context.position;
       match parser.parse(context) {
         Ok(output) => outputs.push(output),
-        Err(err @ ParseError { reason: PartialMatch(_), position: _ }) => return Err(err),
-        Err(err @ ParseError { reason: Error(_), position: _ }) => return Err(err),
+        Err(err) if err.is_partial() => return Err(err),
         _ => {
           context.position = position;
           break
@@ -222,8 +235,7 @@ pub fn upto<I, O, E>(upto: usize, mut parser: impl Parser<I, O, E>) -> impl Pars
       let position = context.position;
       match parser.parse(context) {
         Ok(output) => outputs.push(output),
-        Err(err @ ParseError { reason: PartialMatch(_), position: _ }) => return Err(err),
-        Err(err @ ParseError { reason: Error(_), position: _ }) => return Err(err),
+        Err(err) if err.is_partial() => return Err(err),
         _ => {
           context.position = position;
           break
