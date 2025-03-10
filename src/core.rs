@@ -193,6 +193,8 @@ pub fn many<I, O, E>(mut parser: impl Parser<I, O, E>) -> impl Parser<I, Vec<O>,
       let position = context.position;
       match parser.parse(context) {
         Ok(output) => outputs.push(output),
+        Err(err @ ParseError { reason: PartialMatch(_), position: _ }) => return Err(err),
+        Err(err @ ParseError { reason: Error(_), position: _ }) => return Err(err),
         _ => {
           context.position = position;
           break
@@ -218,11 +220,14 @@ pub fn upto<I, O, E>(upto: usize, mut parser: impl Parser<I, O, E>) -> impl Pars
     let mut outputs = Vec::new();
     while outputs.len() < upto {
       let position = context.position;
-      if let Ok(output) = parser.parse(context) {
-        outputs.push(output);
-      } else {
-        context.position = position;
-        break
+      match parser.parse(context) {
+        Ok(output) => outputs.push(output),
+        Err(err @ ParseError { reason: PartialMatch(_), position: _ }) => return Err(err),
+        Err(err @ ParseError { reason: Error(_), position: _ }) => return Err(err),
+        _ => {
+          context.position = position;
+          break
+        }, 
       }
     }
     Ok(outputs)
