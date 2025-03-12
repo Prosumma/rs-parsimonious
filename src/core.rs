@@ -1,42 +1,23 @@
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum PartialMatchReason {
-  NoMatch,
-  End,
-}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ParseErrorReason<E = ()> {
+pub enum ParseErrorReason {
   NoMatch,
   End,
-  PartialMatch(PartialMatchReason),
-  Error(E),
-}
-
-impl<E> ParseErrorReason<E> {
-  pub fn is_partial(&self) -> bool {
-    match self {
-      PartialMatch(_) => true,
-      Error(_) => true,
-      _ => false,
-    }
-  }
 }
 
 pub use ParseErrorReason::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ParseError<E = ()> {
-  pub reason: ParseErrorReason<E>,
+  pub reason: ParseErrorReason,
   pub position: usize,
+  pub partial: bool,
+  pub extra: Option<E>,
 }
 
 impl<E> ParseError<E> {
-  pub fn new(reason: ParseErrorReason<E>, position: usize) -> ParseError<E> {
-    ParseError { reason, position }
-  }
-
-  pub fn is_partial(&self) -> bool {
-    self.reason.is_partial()
+  pub fn new(reason: ParseErrorReason, position: usize, partial: bool, extra: Option<E>) -> ParseError<E> {
+    ParseError { reason, position, partial, extra }
   }
 }
 
@@ -58,28 +39,12 @@ impl<'a, I> ParseContext<'a, I> {
     self.position >= self.input.len()
   }
 
-  pub fn err_end<E>(&self) -> ParseError<E> {
-    ParseError::new(End, self.position)
+  pub fn err<E>(&self, reason: ParseErrorReason, partial: bool, extra: Option<E>) -> ParseError<E> {
+    ParseError::new(reason, self.position, partial, extra)
   }
 
-  pub fn err_partial_match<E>(&self, reason: PartialMatchReason) -> ParseError<E> {
-    ParseError::new(PartialMatch(reason), self.position)
-  }
-
-  pub fn err_no_match<E>(&self) -> ParseError<E> {
-    ParseError::new(NoMatch, self.position)
-  }
-
-  pub fn throw_end<O, E>(&self) -> Result<O, ParseError<E>> {
-    Err(self.err_end())
-  }
-
-  pub fn throw_partial_match<O, E>(&self, reason: PartialMatchReason) -> Result<O, ParseError<E>> {
-    Err(self.err_partial_match(reason))
-  }
-
-  pub fn throw_no_match<O, E>(&self) -> Result<O, ParseError<E>> {
-    Err(self.err_no_match())
+  pub fn throw_err<O, E>(&self, reason: ParseErrorReason, partial: bool, extra: Option<E>) -> Result<O, ParseError<E>> {
+    Err(self.err(reason, partial, extra))
   }
 }
 
@@ -121,7 +86,7 @@ impl<I, O, F: Clone, E> Parser<I, O, E> for F
 
 pub fn end<I, E>(context: &mut ParseContext<I>) -> Result<(), ParseError<E>> {
   if let Some(_) = context.current() {
-    context.throw_no_match()
+    context.throw_err(NoMatch, false, None)
   } else {
     Ok(())
   }
@@ -133,7 +98,7 @@ pub fn any<I: Clone, E>(context: &mut ParseContext<I>) -> Result<I, ParseError<E
     context.position += 1;
     Ok(i)
   } else {
-    context.throw_end()
+    context.throw_err(End, false, None)
   }
 }
 
@@ -145,10 +110,10 @@ pub fn satisfy<I: Clone, E>(mut test: impl FnMut(&I) -> bool + Clone) -> impl Pa
         context.position += 1;
         Ok(i)
       } else {
-        context.throw_no_match()
+        context.throw_err(NoMatch, false, None)
       }
     } else {
-      context.throw_end()
+      context.throw_err(End, false, None)
     }
   }
 }
@@ -173,10 +138,10 @@ pub fn partial<I, O, E>(mut parser: impl Parser<I, O, E>, at: usize) -> impl Par
   move |context: &mut ParseContext<I>| {
     let initial_position = context.position;
     match parser.parse(context) {
-      Err(ParseError { reason: NoMatch, position: err_position }) if err_position - initial_position >= at =>
-        Err(ParseError::new(PartialMatch(PartialMatchReason::NoMatch), err_position)),
-      Err(ParseError { reason: End, position: err_position}) if err_position - initial_position >= at =>
-        Err(ParseError::new(PartialMatch(PartialMatchReason::End), err_position)),
+      Err(mut err) if !err.partial && err.position - initial_position >= at => {
+        err.partial = true;
+        Err(err)
+      }
       other =>
         other
     }
@@ -187,11 +152,7 @@ pub fn or<I, O, E>(mut first: impl Parser<I, O, E>, mut second: impl Parser<I, O
   move |context: &mut ParseContext<I>| {
     let position = context.position;
     match first.parse(context) {
-      Err(ParseError { reason: NoMatch, position: _ }) => { 
-        context.position = position;
-        second.parse(context)
-      },
-      Err(ParseError { reason: End, position: _ }) => {
+      Err(err) if !err.partial => {
         context.position = position;
         second.parse(context)
       },
@@ -207,7 +168,7 @@ pub fn many<I, O, E>(mut parser: impl Parser<I, O, E>) -> impl Parser<I, Vec<O>,
       let position = context.position;
       match parser.parse(context) {
         Ok(output) => outputs.push(output),
-        Err(err) if err.is_partial() => return Err(err),
+        Err(err) if err.partial => return Err(err),
         _ => {
           context.position = position;
           break
@@ -235,7 +196,7 @@ pub fn upto<I, O, E>(upto: usize, mut parser: impl Parser<I, O, E>) -> impl Pars
       let position = context.position;
       match parser.parse(context) {
         Ok(output) => outputs.push(output),
-        Err(err) if err.is_partial() => return Err(err),
+        Err(err) if err.partial => return Err(err),
         _ => {
           context.position = position;
           break
@@ -292,7 +253,7 @@ pub fn not<I, O, E>(mut parser: impl Parser<I, O, E>) -> impl Parser<I, (), E> {
       context.position = position;
       Ok(())
     } else {
-      context.throw_no_match()
+      context.throw_err(NoMatch, false, None)
     }
   }
 }

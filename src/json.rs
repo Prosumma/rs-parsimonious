@@ -32,7 +32,6 @@ pub enum JSONToken {
 pub struct JSONTokenError {
   pub token: JSONToken,
   pub start: usize,
-  pub reason: PartialMatchReason,
 }
 
 pub type JSONError = ParseError<JSONTokenError>;
@@ -42,7 +41,10 @@ pub trait JSONParser<I, O>: Parser<I, O, JSONTokenError> {
     move |context: &mut ParseContext<I>| {
       let start = context.position;
       match self.parse(context) {
-        Err(ParseError { reason: PartialMatch(reason), position }) => Err(ParseError::new(Error(JSONTokenError{token, start, reason}), position)),
+        Err(mut err) if err.partial => {
+          err.extra = Some(JSONTokenError { token, start });
+          Err(err)
+        }
         other => other
       }      
     }
@@ -66,11 +68,11 @@ fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, JSONError
             output.push(unichar);
             unicode = None;
           } else {
-            return context.throw_partial_match(PartialMatchReason::NoMatch) 
+            return context.throw_err(NoMatch, true, None)
           }
         }
       } else {
-        return context.throw_partial_match(PartialMatchReason::NoMatch) 
+        return context.throw_err(NoMatch, true, None)
       }
     } else if escaping {
       match c {
@@ -83,7 +85,7 @@ fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, JSONError
         'b'  => output.push('\x08'),
         'f'  => output.push('\x0C'),
         'u'  => unicode = Some(String::new()),
-         _   => return context.throw_partial_match(PartialMatchReason::NoMatch) 
+         _   => return context.throw_err(NoMatch, true, None)
       }
       escaping = false
     } else if c == '"' {
@@ -100,7 +102,7 @@ fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, JSONError
   // by itself never occurs in JSON. It is
   // always surrounded by quotes.
   if context.at_end() {
-    context.throw_partial_match(PartialMatchReason::End)
+    context.throw_err(NoMatch, true, None) 
   } else {
     Ok(output)
   }
@@ -314,35 +316,35 @@ mod tests {
   fn parse_partial_null() {
     let s = "numm";
     let r = parse_str(s, json.end());
-    assert_eq!(r, Err(ParseError { reason: Error(JSONTokenError { token: JSONToken::Null, start: 0, reason: PartialMatchReason::NoMatch }), position: 2 }))
+    assert_eq!(r, Err(ParseError { reason: NoMatch, position: 2, partial: true, extra: Some(JSONTokenError { token: JSONToken::Null, start: 0 }) }));
   }
 
   #[test]
   fn parse_partial_string() {
     let s = r#""foo"#;
     let r = parse_str(s, json.end());
-    assert_eq!(r, Err(ParseError { reason: Error(JSONTokenError { token: JSONToken::String, start: 0, reason: PartialMatchReason::End }), position: 4 }))
+    assert_eq!(r, Err(ParseError { reason: NoMatch, position: 4, partial: true, extra: Some(JSONTokenError { token: JSONToken::String, start: 0 }) }));
   }
 
   #[test]
   fn parse_partial_number() {
     let s = "-a";
     let r = parse_str(s, json.end());
-    assert_eq!(r, Err(ParseError { reason: Error(JSONTokenError { token: JSONToken::Number, start: 0, reason: PartialMatchReason::NoMatch }), position: 1 }))
+    assert_eq!(r, Err(ParseError { reason: NoMatch, position: 1, partial: true, extra: Some(JSONTokenError { token: JSONToken::Number, start: 0 }) }));
   }
 
   #[test]
   fn parse_partial_exponent() {
     let s = "-1e13a";
     let r = parse_str(s, json.end());
-    assert_eq!(r, Err(ParseError { reason: Error(JSONTokenError { token: JSONToken::Number, start: 0, reason: PartialMatchReason::NoMatch }), position: 5 }))
+    assert_eq!(r, Err(ParseError { reason: NoMatch, position: 5, partial: true, extra: Some(JSONTokenError { token: JSONToken::Number, start: 0 }) }));
   }
 
   #[test]
   fn parse_partial_object() {
     let s = r#"{ "#;
     let r = parse_str(s, json.end());
-    assert_eq!(r, Err(ParseError { reason: Error(JSONTokenError { token: JSONToken::Object, start: 0, reason: PartialMatchReason::End }), position: 2 }))
+    assert_eq!(r, Err(ParseError { reason: End, position: 2, partial: true, extra: Some(JSONTokenError { token: JSONToken::Object, start: 0 }) }));
   }
 
 }
