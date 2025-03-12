@@ -85,7 +85,7 @@ impl<I, O, F: Clone, E> Parser<I, O, E> for F
 }
 
 pub fn end<I, E>(context: &mut ParseContext<I>) -> Result<(), ParseError<E>> {
-  if let Some(_) = context.current() {
+  if context.current().is_some() {
     context.throw_err(NoMatch, false, None)
   } else {
     Ok(())

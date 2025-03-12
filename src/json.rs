@@ -41,7 +41,7 @@ pub trait JSONParser<I, O>: Parser<I, O, JSONTokenError> {
     move |context: &mut ParseContext<I>| {
       let start = context.position;
       match self.parse(context) {
-        Err(mut err) if err.partial => {
+        Err(mut err) if err.partial && err.extra.is_none() => {
           err.extra = Some(JSONTokenError { token, start });
           Err(err)
         }
