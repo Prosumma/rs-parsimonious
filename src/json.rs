@@ -68,11 +68,11 @@ fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, JSONError
             output.push(unichar);
             unicode = None;
           } else {
-            return context.throw_err(NoMatch, true)
+            return context.throw_err_extra(NoMatch, true, None)
           }
         }
       } else {
-        return context.throw_err(NoMatch, true)
+        return context.throw_err_extra(NoMatch, true, None)
       }
     } else if escaping {
       match c {
@@ -85,7 +85,7 @@ fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, JSONError
         'b'  => output.push('\x08'),
         'f'  => output.push('\x0C'),
         'u'  => unicode = Some(String::new()),
-         _   => return context.throw_err(NoMatch, true)
+         _   => return context.throw_err_extra(NoMatch, true, None)
       }
       escaping = false
     } else if c == '"' {
@@ -102,7 +102,7 @@ fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, JSONError
   // by itself never occurs in JSON. It is
   // always surrounded by quotes.
   if context.at_end() {
-    context.throw_err(NoMatch, true) 
+    context.throw_err_extra(NoMatch, true, None) 
   } else {
     Ok(output)
   }
