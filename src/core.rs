@@ -39,12 +39,20 @@ impl<'a, I> ParseContext<'a, I> {
     self.position >= self.input.len()
   }
 
-  pub fn err<E>(&self, reason: ParseErrorReason, partial: bool, extra: Option<E>) -> ParseError<E> {
+  pub fn err_extra<E>(&self, reason: ParseErrorReason, partial: bool, extra: Option<E>) -> ParseError<E> {
     ParseError::new(reason, self.position, partial, extra)
   }
 
-  pub fn throw_err<O, E>(&self, reason: ParseErrorReason, partial: bool, extra: Option<E>) -> Result<O, ParseError<E>> {
-    Err(self.err(reason, partial, extra))
+  pub fn throw_err_extra<O, E>(&self, reason: ParseErrorReason, partial: bool, extra: Option<E>) -> Result<O, ParseError<E>> {
+    Err(self.err_extra(reason, partial, extra))
+  }
+
+  pub fn err<E>(&self, reason: ParseErrorReason, partial: bool) -> ParseError<E> {
+    self.err_extra(reason, partial, None)
+  }
+
+  pub fn throw_err<O, E>(&self, reason: ParseErrorReason, partial: bool) -> Result<O, ParseError<E>> {
+    self.throw_err_extra(reason, partial, None)
   }
 }
 
@@ -86,7 +94,7 @@ impl<I, O, F: Clone, E> Parser<I, O, E> for F
 
 pub fn end<I, E>(context: &mut ParseContext<I>) -> Result<(), ParseError<E>> {
   if context.current().is_some() {
-    context.throw_err(NoMatch, false, None)
+    context.throw_err(NoMatch, false)
   } else {
     Ok(())
   }
@@ -98,7 +106,7 @@ pub fn any<I: Clone, E>(context: &mut ParseContext<I>) -> Result<I, ParseError<E
     context.position += 1;
     Ok(i)
   } else {
-    context.throw_err(End, false, None)
+    context.throw_err(End, false)
   }
 }
 
@@ -110,10 +118,10 @@ pub fn satisfy<I: Clone, E>(mut test: impl FnMut(&I) -> bool + Clone) -> impl Pa
         context.position += 1;
         Ok(i)
       } else {
-        context.throw_err(NoMatch, false, None)
+        context.throw_err(NoMatch, false)
       }
     } else {
-      context.throw_err(End, false, None)
+      context.throw_err(End, false)
     }
   }
 }
@@ -253,7 +261,7 @@ pub fn not<I, O, E>(mut parser: impl Parser<I, O, E>) -> impl Parser<I, (), E> {
       context.position = position;
       Ok(())
     } else {
-      context.throw_err(NoMatch, false, None)
+      context.throw_err(NoMatch, false)
     }
   }
 }
