@@ -15,12 +15,6 @@ pub struct ParseError<E = ()> {
   pub extra: Option<E>,
 }
 
-impl<E> ParseError<E> {
-  pub fn new(reason: ParseErrorReason, position: usize, partial: bool, extra: Option<E>) -> ParseError<E> {
-    ParseError { reason, position, partial, extra }
-  }
-}
-
 pub struct ParseContext<'a, I> {
   input: &'a [I],
   pub position: usize,
@@ -40,7 +34,7 @@ impl<'a, I> ParseContext<'a, I> {
   }
 
   pub fn err_extra<E>(&self, reason: ParseErrorReason, partial: bool, extra: Option<E>) -> ParseError<E> {
-    ParseError::new(reason, self.position, partial, extra)
+    ParseError { reason, position: self.position, partial, extra }
   }
 
   pub fn throw_err_extra<O, E>(&self, reason: ParseErrorReason, partial: bool, extra: Option<E>) -> Result<O, ParseError<E>> {
