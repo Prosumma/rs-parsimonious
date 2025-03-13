@@ -41,6 +41,14 @@ impl<'a, I> ParseContext<'a, I> {
     Err(self.err_extra(reason, partial, extra))
   }
 
+  pub fn err_partial<E>(&self, reason: ParseErrorReason) -> ParseError<E> {
+    self.err_extra(reason, true, None)
+  }
+
+  pub fn throw_err_partial<O, E>(&self, reason: ParseErrorReason) -> Result<O, ParseError<E>> {
+    self.throw_err_extra(reason, true, None)
+  }
+
   pub fn err<E>(&self, reason: ParseErrorReason) -> ParseError<E> {
     self.err_extra(reason, false, None)
   }

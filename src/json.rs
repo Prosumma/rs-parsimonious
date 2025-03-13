@@ -68,11 +68,11 @@ fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, JSONError
             output.push(unichar);
             unicode = None;
           } else {
-            return context.throw_err_extra(NoMatch, true, None)
+            return context.throw_err_partial(NoMatch)
           }
         }
       } else {
-        return context.throw_err_extra(NoMatch, true, None)
+        return context.throw_err_partial(NoMatch)
       }
     } else if escaping {
       match c {
@@ -85,7 +85,7 @@ fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, JSONError
         'b'  => output.push('\x08'),
         'f'  => output.push('\x0C'),
         'u'  => unicode = Some(String::new()),
-         _   => return context.throw_err_extra(NoMatch, true, None)
+         _   => return context.throw_err_partial(NoMatch)
       }
       escaping = false
     } else if c == '"' {
@@ -102,7 +102,7 @@ fn unquoted_string(context: &mut ParseContext<char>) -> Result<String, JSONError
   // by itself never occurs in JSON. It is
   // always surrounded by quotes.
   if context.at_end() {
-    context.throw_err_extra(NoMatch, true, None) 
+    context.throw_err_partial(End)
   } else {
     Ok(output)
   }
@@ -323,7 +323,7 @@ mod tests {
   fn parse_partial_string() {
     let s = r#""foo"#;
     let r = parse_str(s, json.end());
-    assert_eq!(r, Err(ParseError { reason: NoMatch, position: 4, partial: true, extra: Some(JSONTokenError { token: JSONToken::String, start: 0 }) }));
+    assert_eq!(r, Err(ParseError { reason: End, position: 4, partial: true, extra: Some(JSONTokenError { token: JSONToken::String, start: 0 }) }));
   }
 
   #[test]
