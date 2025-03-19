@@ -15,7 +15,7 @@ pub enum JSON {
   Array(Vec<JSON>),
   Object(HashMap<String, JSON>),
   Bool(bool),
-  Null
+  Null,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -25,7 +25,7 @@ pub enum JSONToken {
   Array,
   Object,
   Bool,
-  Null
+  Null,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]

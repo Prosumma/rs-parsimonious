@@ -108,21 +108,20 @@ pub trait VecParser<I, O, E>: Parser<I, Vec<O>, E> {
 impl<I, O, E, P> VecParser<I, O, E> for P where P: Parser<I, Vec<O>, E> {}
 
 pub fn eqchar<E>(model: char, case_sensitive: bool) -> impl Parser<char, char, E> {
-  satisfy(move |c: &char| {
-    if case_sensitive {
-      *c == model
-    } else {
-      c.to_ascii_lowercase() == model.to_ascii_lowercase()
-    }
-  })
+  cond(
+    case_sensitive,
+    eq(model),
+    satisfy(move |c: &char| c.to_ascii_lowercase() == model.to_ascii_lowercase())
+  )
 }
 
 pub fn eqstr<S: AsRef<str>, E>(model: S, case_sensitive: bool) -> impl Parser<char, Vec<char>, E> {
   let chars: Vec<char> = model.as_ref().chars().collect();
   move |context: &mut ParseContext<char>| {
+    let q = |model: char| eqchar(model, case_sensitive);
     let mut output = Vec::new();
     for &model in &chars {
-      output.push(eqchar(model, case_sensitive).parse(context)?);
+      output.push(q(model).parse(context)?);
     }
     Ok(output)
   }
@@ -252,7 +251,7 @@ pub trait CharParser<O, E>: Parser<char, O, E> {
 impl<O, E, P> CharParser<O, E> for P where P: Parser<char, O, E> {}
 
 pub fn parse<I, O, E>(input: &[I], mut parser: impl Parser<I, O, E>) -> Result<O, ParseError<E>> {
-  let mut context = ParseContext::new(input);
+  let mut context = ParseContext::from(input);
   parser.parse(&mut context)
 }
 

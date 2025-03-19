@@ -20,11 +20,13 @@ pub struct ParseContext<'a, I> {
   pub position: usize,
 }
 
-impl<'a, I> ParseContext<'a, I> {
-  pub const fn new(input: &[I]) -> ParseContext<I> {
-    ParseContext { input, position: 0 }
+impl<'a, I> From<&'a [I]> for ParseContext<'a, I> {
+  fn from(value: &'a [I]) -> Self {
+    ParseContext { input: value, position: 0 }
   }
+}
 
+impl<'a, I> ParseContext<'a, I> {
   pub fn current(&self) -> Option<&I> {
     self.input.get(self.position)
   }
@@ -131,6 +133,34 @@ pub fn satisfy<I: Clone, E>(mut test: impl FnMut(&I) -> bool + Clone) -> impl Pa
 pub fn map<I, O, E, M>(mut parser: impl Parser<I, O, E>, mut f: impl FnMut(O) -> M + Clone) -> impl Parser<I, M, E> {
   move |context: &mut ParseContext<I>| {
     parser.parse(context).map(&mut f)
+  }
+}
+
+pub fn cond<I, O, E>(condition: bool, mut first: impl Parser<I, O, E>, mut second: impl Parser<I, O, E>) -> impl Parser<I, O, E> {
+  move |context: &mut ParseContext<I>| {
+    if condition {
+      first.parse(context)
+    } else {
+      second.parse(context)
+    }
+  }
+}
+
+pub fn err_extra<I, O, E: Clone>(reason: ParseErrorReason, partial: bool, extra: Option<E>) -> impl Parser<I, O, E> {
+  move |context: &mut ParseContext<I>| {
+    context.throw_err_extra(reason, partial, extra.clone())
+  }
+} 
+
+pub fn err_partial<I, O, E>(reason: ParseErrorReason) -> impl Parser<I, O, E> {
+  move |context: &mut ParseContext<I>| {
+    context.throw_err_extra(reason, true, None)
+  }
+}
+
+pub fn err<I, O, E>(reason: ParseErrorReason) -> impl Parser<I, O, E> {
+  move |context: &mut ParseContext<I>| {
+    context.throw_err_extra(reason, false, None)
   }
 }
 
