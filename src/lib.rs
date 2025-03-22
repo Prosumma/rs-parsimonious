@@ -16,6 +16,18 @@ macro_rules! chains {
   ($parser:expr, $($rest:expr),+) => { chains($parser, chains!($($rest),+)) };
 }
 
+#[macro_export]
+macro_rules! first {
+  ($parser:expr) => { $parser };
+  ($parser:expr, $($rest:expr),+) => { first($parser, first!($($rest),+)) };
+}
+
+#[macro_export]
+macro_rules! last {
+  ($parser:expr) => { $parser };
+  ($parser:expr, $($rest:expr),+) => { second($parser, last!($($rest),+)) };
+}
+
 pub fn void<I, O, E>(parser: impl Parser<I, O, E>) -> impl Parser<I, (), E> {
   parser.map(|_| ())
 }
