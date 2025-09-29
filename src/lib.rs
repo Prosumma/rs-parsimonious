@@ -192,7 +192,7 @@ pub trait StringParser<I, E>: Parser<I, Vec<char>, E> {
 impl<I, E, P> StringParser<I, E> for P where P: Parser<I, Vec<char>, E> {}
 
 pub fn optional<I, O, E>(parser: impl Parser<I, O, E>) -> impl Parser<I, Vec<O>, E> {
-  or(parser.to_vec(), just(Vec::new))
+  parser.to_vec().maybe() 
 }
 
 pub fn many1_sep<I, O, S, E>(parser: impl Parser<I, O, E>, sep: impl Parser<I, S, E>) -> impl Parser<I, Vec<O>, E> {
