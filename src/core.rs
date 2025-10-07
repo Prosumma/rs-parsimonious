@@ -20,7 +20,7 @@ pub struct ParseContext<'a, I> {
 }
 
 impl<'a, I> From<&'a [I]> for ParseContext<'a, I> {
-  fn from(value: &'a [I]) -> Self {
+  fn from(value: &'a [I]) -> ParseContext<'a, I> {
     ParseContext { input: value, position: 0 }
   }
 }
