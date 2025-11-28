@@ -103,7 +103,7 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
 
 impl<I, O, E, P> ExtParser<I, O, E> for P where P: Parser<I, O, E> {}
 
-pub trait StrParser<'a, O, E = ()>: Parser<&'a str, O, E> {
+pub trait StrInParser<'a, O, E = ()>: Parser<&'a str, O, E> {
     fn whitespaced(self, required: bool) -> impl Parser<&'a str, O, E> {
         cond(
             required,
@@ -131,23 +131,31 @@ pub trait StrParser<'a, O, E = ()>: Parser<&'a str, O, E> {
     }
 }
 
-impl<'a, O, E, P> StrParser<'a, O, E> for P where P: Parser<&'a str, O, E> {}
+impl<'a, O, E, P> StrInParser<'a, O, E> for P where P: Parser<&'a str, O, E> {}
 
-pub trait CharParser<I, E = ()>: Parser<I, Vec<char>, E> {
+pub trait CharOutParser<I, E = ()>: Parser<I, Vec<char>, E> {
     fn to_string(self) -> impl Parser<I, String, E> {
         self.map(String::from_iter)
     }
 }
 
-impl<I, E, P> CharParser<I, E> for P where P: Parser<I, Vec<char>, E> {}
+impl<I, E, P> CharOutParser<I, E> for P where P: Parser<I, Vec<char>, E> {}
 
-pub trait SliceParser<'a, I: 'a, O, E = ()>: Parser<&'a [I], O, E> {
+pub trait StrOutParser<'a, I, E = ()>: Parser<I, &'a str, E> {
+    fn to_string(self) -> impl Parser<I, String, E> {
+        self.map(|s| s.to_string())
+    }
+}
+
+impl<'a, I, E, P> StrOutParser<'a, I, E> for P where P: Parser<I, &'a str, E> {}
+
+pub trait SliceInParser<'a, I: 'a, O, E = ()>: Parser<&'a [I], O, E> {
     fn end(self) -> impl Parser<&'a [I], O, E> {
         self.followed_by(end)
     }
 }
 
-impl<'a, I: 'a, O, E, P> SliceParser<'a, I, O, E> for P where P: Parser<&'a [I], O, E> {}
+impl<'a, I: 'a, O, E, P> SliceInParser<'a, I, O, E> for P where P: Parser<&'a [I], O, E> {}
 
 #[cfg(test)]
 mod tests {
