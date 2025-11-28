@@ -47,7 +47,10 @@ fn unquoted_string<'a, E>(input: &'a str) -> ParseResult<&'a str, String, E> {
                     'b' => output.push('\x08'),
                     'f' => output.push('\x0C'),
                     'u' => unicode = Some(String::new()),
-                    _ => return err(input, NoMatch),
+                    i => {
+                        return err(input, NoMatch)
+                            .err_message(format!("Invalid escape character: {}", i))
+                    }
                 }
                 escaping = false;
             } else if c == '"' {
