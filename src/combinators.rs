@@ -135,7 +135,7 @@ pub fn string<'a, E, S: AsRef<str> + Clone>(
             loop {
                 match (s_chars.next(), input_chars.next()) {
                     (None, _) => return ok(input_chars.as_str(), &input[..s.len()]),
-                    (Some(_), None) => return err(input, EOF),
+                    (_, None) => return err(input, EOF),
                     (Some(s_c), Some(input_c)) => {
                         if s_c.to_ascii_lowercase() != input_c.to_ascii_lowercase() {
                             return err(input, NoMatch);
