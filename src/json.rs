@@ -2,7 +2,9 @@ use crate::combinators::*;
 use crate::ext::*;
 use crate::or;
 use crate::parser::*;
+use crate::peek;
 use crate::result::*;
+use crate::void;
 use std::collections::HashMap;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -82,12 +84,17 @@ pub fn json_string<'a, E>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
     parse(input, quoted_string.map(JSON::String))
 }
 
-pub fn json_number<'a, E>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
+pub fn json_number<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
+    let term = peek!(',', ']', '}', end_str).preceded_by(whitespace.many());
     let digit = one_of_str("0123456789", false);
-    parse(input, digit.many1().to_string().map(JSON::Number))
+    let digits = concat(
+        digit.clone().to_vec(),
+        digit.many().followed_by(term).irrefutable(),
+    );
+    parse(input, digits.to_string().map(JSON::Number))
 }
 
-pub fn json_array<'a, E>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
+pub fn json_array<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
     parse(
         input,
         json.many_sep_by(','.whitespaced(false))
@@ -96,14 +103,14 @@ pub fn json_array<'a, E>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
     )
 }
 
-pub fn json_assignment<'a, E>(input: &'a str) -> ParseResult<&'a str, (String, JSON), E> {
+pub fn json_assignment<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, (String, JSON), E> {
     parse(
         input,
         tuple(quoted_string, json.preceded_by(':'.whitespaced(false))),
     )
 }
 
-pub fn json_object<'a, E>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
+pub fn json_object<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
     parse(
         input,
         json_assignment
@@ -124,7 +131,7 @@ pub fn json_null<'a, E>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
     string("null", false).map(|_| JSON::Null).parse(input)
 }
 
-pub fn json<'a, E>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
+pub fn json<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
     let options = or!(
         json_string,
         json_number,
@@ -148,9 +155,25 @@ mod tests {
     }
 
     #[test]
+    fn test_json_number() {
+        let input = "1934,";
+        let result: ParseResult<&str, JSON> = parse(input, json_number);
+        let success = result.unwrap();
+        println!("{}", success.input);
+        assert_eq!(success.output, JSON::Number("1934".to_string()));
+    }
+
+    #[test]
     fn test_json_object() {
         let input = "{\"key\": \"value\", \"koo\": [\"voolue\", null, 743, false]}";
         let result: ParseResult<&str, JSON> = parse(input, json_object);
+        result.unwrap();
+    }
+
+    #[test]
+    fn test_json_array() {
+        let input = "[\"voolue\", null, 743, false]";
+        let result: ParseResult<&str, JSON> = parse(input, json_array);
         result.unwrap();
     }
 }

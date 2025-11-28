@@ -6,6 +6,27 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
     fn map<T>(mut self, f: impl FnMut(O) -> T + Clone) -> impl Parser<I, T, E> {
         move |input: I| Ok(self.parse(input)?.map(f.clone()))
     }
+    fn map_err(
+        self,
+        f: impl FnMut(ParseError<I, E>) -> ParseError<I, E> + Clone,
+    ) -> impl Parser<I, O, E>
+    where
+        I: Clone,
+    {
+        move |input: I| self.clone().parse(input.clone()).map_err(f.clone())
+    }
+    fn void(self) -> impl Parser<I, (), E> {
+        self.map(|_| ())
+    }
+    fn peek(mut self) -> impl Parser<I, O, E>
+    where
+        I: Clone,
+    {
+        move |input: I| {
+            let result = self.parse(input.clone())?;
+            ok(input, result.output)
+        }
+    }
     fn to_vec(self) -> impl Parser<I, Vec<O>, E> {
         self.map(|o| vec![o])
     }
@@ -175,5 +196,22 @@ mod tests {
         let parser = 'a'.many1().whitespaced(false).braced().end();
         let result: ParseResult<&str, Vec<char>> = parse(input, parser);
         assert!(result.is_ok())
+    }
+}
+
+#[macro_export]
+macro_rules! void {
+    ($parser:expr) => {
+        $parser.void()
+    };
+    ($parser:expr, $($rest:expr),+) => {
+        $crate::combinators::or($parser.void(), void!($($rest),+))
+    };
+}
+
+#[macro_export]
+macro_rules! peek {
+    ($parser:expr, $($rest:expr),*) => {
+        $crate::void!($parser, $($rest),*).peek()
     }
 }

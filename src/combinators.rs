@@ -214,6 +214,35 @@ macro_rules! concat {
     }
 }
 
+pub fn fail<I, O, E: Clone, S: ToString + Clone>(
+    reason: ParseErrorReason,
+    message: Option<S>,
+    meta: Option<E>,
+) -> impl Parser<I, O, E> {
+    move |input: I| {
+        let mut err = ParseError::new(input, reason);
+        err.message = message.clone().map(|s| s.to_string());
+        err.meta = meta.clone();
+        Err(err)
+    }
+}
+
+#[macro_export]
+macro_rules! fail {
+    ($reason:expr) => {
+        $crate::combinators::fail($reason, None, None)
+    };
+    ($reason:expr, message = $message:expr, meta = $meta:expr) => {
+        $crate::combinators::fail($reason, Some($message), Some($meta))
+    };
+    ($reason:expr, message = $message:expr) => {
+        $crate::combinators::fail($reason, Some($message), None)
+    };
+    ($reason:expr, meta = $meta:expr) => {
+        $crate::combinators::fail($reason, None, Some($meta))
+    };
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
