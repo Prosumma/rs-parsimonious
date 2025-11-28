@@ -1,6 +1,5 @@
 use crate::combinators::*;
 use crate::ext::*;
-use crate::next_char_slice;
 use crate::or;
 use crate::parser::*;
 use crate::result::*;
