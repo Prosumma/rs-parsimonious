@@ -17,12 +17,14 @@ pub enum JSON {
 }
 
 fn unquoted_string<'a, E>(input: &'a str) -> ParseResult<&'a str, String, E> {
-    let mut input = input;
     let mut output = String::new();
     let mut escaping = false;
     let mut unicode: Option<String> = None;
+    let mut chars = input.char_indices();
+    let mut last_idx: usize;
     loop {
-        if let Some(c) = input.chars().next() {
+        if let Some((ix, c)) = chars.next() {
+            last_idx = ix;
             if let Some(ref mut u) = unicode {
                 if c.is_ascii_hexdigit() {
                     u.push(c);
@@ -32,9 +34,11 @@ fn unquoted_string<'a, E>(input: &'a str) -> ParseResult<&'a str, String, E> {
                             output.push(unichar);
                             unicode = None;
                         } else {
-                            return err(input, NoMatch);
+                            return err(chars.as_str(), NoMatch);
                         }
                     }
+                } else {
+                    return err(chars.as_str(), NoMatch);
                 }
             } else if escaping {
                 match c {
@@ -48,7 +52,7 @@ fn unquoted_string<'a, E>(input: &'a str) -> ParseResult<&'a str, String, E> {
                     'f' => output.push('\x0C'),
                     'u' => unicode = Some(String::new()),
                     i => {
-                        return err(input, NoMatch)
+                        return err(chars.as_str(), NoMatch)
                             .err_message(format!("Invalid escape character: {}", i))
                     }
                 }
@@ -60,15 +64,14 @@ fn unquoted_string<'a, E>(input: &'a str) -> ParseResult<&'a str, String, E> {
             } else {
                 output.push(c);
             }
-            input = next_char_slice(input);
         } else {
-            return err(input, EOF);
+            return err(chars.as_str(), EOF);
         }
     }
     if input.len() == 0 {
-        err(input, EOF)
+        err(chars.as_str(), EOF)
     } else {
-        ok(input, output)
+        ok(&input[last_idx..], output)
     }
 }
 
