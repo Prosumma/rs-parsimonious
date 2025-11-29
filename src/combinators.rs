@@ -58,8 +58,8 @@ where
 
 #[macro_export]
 macro_rules! or {
-    ($parser:expr) => { $parser };
-    ($parser:expr, $($rest:expr),+) => {
+    ($parser:expr $(,)?) => { $parser };
+    ($parser:expr, $($rest:expr),+ $(,)?) => {
         or($parser, or!($($rest),+))
     };
 }
@@ -227,10 +227,10 @@ pub fn concat<I, O, E>(
 
 #[macro_export]
 macro_rules! concat {
-    ($parser:expr) => {
+    ($parser:expr $(,)?) => {
         $parser
     };
-    ($parser:expr, $($rest:expr),+) => {
+    ($parser:expr, $($rest:expr),+ $(,)?) => {
         concat($parser, concat!($($rest),+))
     }
 }
@@ -250,16 +250,16 @@ pub fn fail<I, O, E: Clone, S: ToString + Clone>(
 
 #[macro_export]
 macro_rules! fail {
-    ($reason:expr) => {
+    ($reason:expr $(,)?) => {
         $crate::combinators::fail($reason, None, None)
     };
-    ($reason:expr, message = $message:expr, meta = $meta:expr) => {
+    ($reason:expr, message = $message:expr, meta = $meta:expr $(,)?) => {
         $crate::combinators::fail($reason, Some($message), Some($meta))
     };
-    ($reason:expr, message = $message:expr) => {
+    ($reason:expr, message = $message:expr $(,)?) => {
         $crate::combinators::fail($reason, Some($message), None)
     };
-    ($reason:expr, meta = $meta:expr) => {
+    ($reason:expr, meta = $meta:expr $(,)?) => {
         $crate::combinators::fail($reason, None, Some($meta))
     };
 }

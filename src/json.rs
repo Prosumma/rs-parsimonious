@@ -105,7 +105,7 @@ pub fn exponent<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, Vec<char>,
     concat!(
         char('e', true).to_vec(),
         one_of_str("+-", false).maybe(),
-        digit.many1()
+        digit.many1(),
     )
     .parse(input)
 }
@@ -204,7 +204,7 @@ mod tests {
     #[test]
     fn test_json_object() {
         let input = "{\"key\": \"value\", \"koo\": [\"voolue\", null, 743, false]}";
-        let result: ParseResult<&str, JSON> = parse(input, json_object);
+        let result: ParseResult<&str, JSON> = parse(input, json);
         result.unwrap();
     }
 
@@ -212,7 +212,7 @@ mod tests {
     fn test_json_array() {
         let input = "[\"voolue\", null , 743.79, 18.32e2, -7E-3, 0, false ]";
         // let input = "[\"voolue\", null]";
-        let result: ParseResult<&str, JSON> = parse(input, json_array);
+        let result: ParseResult<&str, JSON> = parse(input, json);
         result.unwrap();
     }
 }
