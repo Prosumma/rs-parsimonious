@@ -40,6 +40,12 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
     fn to_vec(self) -> impl Parser<I, Vec<O>, E> {
         self.map(|o| vec![o])
     }
+    fn maybe(self) -> impl Parser<I, Vec<O>, E>
+    where
+        I: Clone,
+    {
+        or(self.to_vec(), just_lazy(Vec::new))
+    }
     fn many(mut self) -> impl Parser<I, Vec<O>, E>
     where
         I: Clone,
@@ -216,6 +222,17 @@ pub trait SliceInParser<'a, I: 'a, O, E = ()>: Parser<&'a [I], O, E> {
 }
 
 impl<'a, I: 'a, O, E, P> SliceInParser<'a, I, O, E> for P where P: Parser<&'a [I], O, E> {}
+
+pub trait VecOutParser<I, O, E = ()>: Parser<I, Vec<O>, E> {
+    fn vec_maybe(self) -> impl Parser<I, Vec<O>, E>
+    where
+        I: Clone,
+    {
+        or(self, just_lazy(Vec::new))
+    }
+}
+
+impl<I, O, E, P> VecOutParser<I, O, E> for P where P: Parser<I, Vec<O>, E> {}
 
 #[macro_export]
 macro_rules! void {

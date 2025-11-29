@@ -1,4 +1,5 @@
 use crate::combinators::*;
+use crate::concat;
 use crate::ext::*;
 use crate::or;
 use crate::parser::*;
@@ -84,19 +85,39 @@ pub fn json_string<'a, E>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
     parse(input, quoted_string.map(JSON::String))
 }
 
+pub fn digit<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, char, E> {
+    one_of_str("0123456789", false).parse(input)
+}
+
+pub fn integer<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, Vec<char>, E> {
+    or(
+        '0'.to_vec(),
+        concat(one_of_str("123456789", false).to_vec(), digit.many()),
+    )
+    .parse(input)
+}
+
+pub fn frac<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, Vec<char>, E> {
+    concat('.'.to_vec(), digit.many()).parse(input)
+}
+
+pub fn exponent<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, Vec<char>, E> {
+    concat!(
+        char('e', true).to_vec(),
+        or(one_of_str("+-", false).to_vec(), just_lazy(Vec::new)),
+        digit.many1()
+    )
+    .parse(input)
+}
+
 pub fn json_number<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
     let term = peek!(',', ']', '}', end_str).preceded_by(whitespace.many());
-    let digit = one_of_str("0123456789", false);
-    parse(
-        input,
-        digit
-            .many1()
-            .followed_by(term)
-            .irrefutable_after(1)
-            .to_string()
-            .map(JSON::Number)
-            .err_message("Expected to match a number.", true),
-    )
+    concat!('-'.maybe(), integer, frac.vec_maybe(), exponent.vec_maybe())
+        .followed_by(term)
+        .irrefutable_after(1)
+        .map(String::from_iter)
+        .map(JSON::Number)
+        .parse(input)
 }
 
 pub fn json_array<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
@@ -189,7 +210,7 @@ mod tests {
 
     #[test]
     fn test_json_array() {
-        let input = "[\"voolue\", null , 743, false ]";
+        let input = "[\"voolue\", null , 743.79, 18.32e2, -7E-3, 0, false ]";
         // let input = "[\"voolue\", null]";
         let result: ParseResult<&str, JSON> = parse(input, json_array);
         result.unwrap();

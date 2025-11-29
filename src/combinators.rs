@@ -3,6 +3,14 @@ use crate::result::*;
 use crate::util::*;
 use std::collections::HashSet;
 
+pub fn just<I, O: Clone, E>(value: O) -> impl Parser<I, O, E> {
+    move |input: I| ok(input, value.clone())
+}
+
+pub fn just_lazy<I, O, E>(mut make_value: impl FnMut() -> O + Clone) -> impl Parser<I, O, E> {
+    move |input: I| ok(input, make_value())
+}
+
 pub fn item<'a, I: Clone + 'a, E>(input: &'a [I]) -> ParseResult<&'a [I], I, E> {
     if let Some(i) = input.get(0) {
         ok(&input[1..], i.clone())
