@@ -115,6 +115,7 @@ pub fn json_number<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, JSON, E
     concat!('-'.maybe(), integer, frac.vec_maybe(), exponent.vec_maybe())
         .followed_by(term)
         .irrefutable_after(1)
+        .err_message("Expected to match a JSON number.", true)
         .map(String::from_iter)
         .map(JSON::Number)
         .parse(input)
@@ -125,7 +126,6 @@ pub fn json_array<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, JSON, E>
         input,
         json.many_sep_by(','.whitespaced(false))
             .bracketed()
-            .err_message("Expected to match an array.", true)
             .map(JSON::Array),
     )
 }
