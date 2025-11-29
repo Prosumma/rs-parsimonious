@@ -87,11 +87,16 @@ pub fn json_string<'a, E>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
 pub fn json_number<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
     let term = peek!(',', ']', '}', end_str).preceded_by(whitespace.many());
     let digit = one_of_str("0123456789", false);
-    let digits = concat(
-        digit.clone().to_vec(),
-        digit.many().followed_by(term).irrefutable(),
-    );
-    parse(input, digits.to_string().map(JSON::Number))
+    parse(
+        input,
+        digit
+            .many1()
+            .followed_by(term)
+            .irrefutable_after(1)
+            .to_string()
+            .map(JSON::Number)
+            .err_message("Expected to match a number.", true),
+    )
 }
 
 pub fn json_array<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
@@ -99,6 +104,7 @@ pub fn json_array<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, JSON, E>
         input,
         json.many_sep_by(','.whitespaced(false))
             .bracketed()
+            .err_message("Expected to match an array.", true)
             .map(JSON::Array),
     )
 }
@@ -122,13 +128,21 @@ pub fn json_object<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, JSON, E
 }
 
 pub fn json_bool<'a, E>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
-    let t = irrefutable_string("true", false, 1).map(|_| JSON::Bool(true));
-    let f = irrefutable_string("false", false, 1).map(|_| JSON::Bool(false));
-    parse(input, or(t, f))
+    let t = string("true", false)
+        .irrefutable_after(1)
+        .map(|_| JSON::Bool(true));
+    let f = string("false", false)
+        .irrefutable_after(1)
+        .map(|_| JSON::Bool(false));
+    parse(
+        input,
+        or(t, f).err_message("Expected to match a Boolean.", true),
+    )
 }
 
 pub fn json_null<'a, E>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
-    irrefutable_string("null", false, 1)
+    string("null", false)
+        .irrefutable_after(1)
         .err_message("Expected keyword 'null'.", true)
         .map(|_| JSON::Null)
         .parse(input)
@@ -162,7 +176,7 @@ mod tests {
         let input = "1934,";
         let result: ParseResult<&str, JSON> = parse(input, json_number);
         let success = result.unwrap();
-        println!("{}", success.input);
+        println!("NUMBER INPUT: {}", success.input);
         assert_eq!(success.output, JSON::Number("1934".to_string()));
     }
 
@@ -175,7 +189,8 @@ mod tests {
 
     #[test]
     fn test_json_array() {
-        let input = "[\"voolue\", null, 743, false]";
+        let input = "[\"voolue\", null , 743, false ]";
+        // let input = "[\"voolue\", null]";
         let result: ParseResult<&str, JSON> = parse(input, json_array);
         result.unwrap();
     }

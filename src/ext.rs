@@ -1,6 +1,7 @@
 use crate::combinators::*;
 use crate::parser::*;
 use crate::result::*;
+use crate::util::*;
 
 pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
     fn map<T>(mut self, f: impl FnMut(O) -> T + Clone) -> impl Parser<I, T, E> {
@@ -152,6 +153,17 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
 impl<I, O, E, P> ExtParser<I, O, E> for P where P: Parser<I, O, E> {}
 
 pub trait StrInParser<'a, O, E = ()>: Parser<&'a str, O, E> {
+    fn irrefutable_after(mut self, after: usize) -> impl Parser<&'a str, O, E> {
+        move |input: &'a str| match self.parse(input) {
+            ok @ Ok(_) => ok,
+            Err(mut err) => {
+                if !err.irrefutable && err.input.char_offset_from(input) > after {
+                    err.irrefutable = true;
+                }
+                Err(err)
+            }
+        }
+    }
     fn whitespaced(self, required: bool) -> impl Parser<&'a str, O, E> {
         cond(
             required,
@@ -205,6 +217,23 @@ pub trait SliceInParser<'a, I: 'a, O, E = ()>: Parser<&'a [I], O, E> {
 
 impl<'a, I: 'a, O, E, P> SliceInParser<'a, I, O, E> for P where P: Parser<&'a [I], O, E> {}
 
+#[macro_export]
+macro_rules! void {
+    ($parser:expr) => {
+        $parser.void()
+    };
+    ($parser:expr, $($rest:expr),+) => {
+        $crate::combinators::or($parser.void(), void!($($rest),+))
+    };
+}
+
+#[macro_export]
+macro_rules! peek {
+    ($parser:expr, $($rest:expr),*) => {
+        $crate::void!($parser, $($rest),*).peek()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,21 +253,19 @@ mod tests {
         let result: ParseResult<&str, Vec<char>> = parse(input, parser);
         assert!(result.is_ok())
     }
-}
 
-#[macro_export]
-macro_rules! void {
-    ($parser:expr) => {
-        $parser.void()
-    };
-    ($parser:expr, $($rest:expr),+) => {
-        $crate::combinators::or($parser.void(), void!($($rest),+))
-    };
-}
+    #[test]
+    fn test_irrefutable_at() {
+        let input1 = "nolk";
+        let input2 = "zulk";
+        let parser = string("null", false).irrefutable_after(1);
 
-#[macro_export]
-macro_rules! peek {
-    ($parser:expr, $($rest:expr),*) => {
-        $crate::void!($parser, $($rest),*).peek()
+        let mut result: ParseResult<&str, &str> = parse(input1, parser.clone());
+        let mut err = result.unwrap_err();
+        assert!(err.irrefutable);
+
+        result = parse(input2, parser);
+        err = result.unwrap_err();
+        assert!(!err.irrefutable);
     }
 }
