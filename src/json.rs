@@ -122,13 +122,15 @@ pub fn json_object<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, JSON, E
 }
 
 pub fn json_bool<'a, E>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
-    let t = string("true", false).map(|_| JSON::Bool(true));
-    let f = string("false", false).map(|_| JSON::Bool(false));
+    let t = irrefutable_string("true", false, 1).map(|_| JSON::Bool(true));
+    let f = irrefutable_string("false", false, 1).map(|_| JSON::Bool(false));
     parse(input, or(t, f))
 }
 
 pub fn json_null<'a, E>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
-    string("null", false).map(|_| JSON::Null).parse(input)
+    irrefutable_string("null", false, 1)
+        .map(|_| JSON::Null)
+        .parse(input)
 }
 
 pub fn json<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, JSON, E> {

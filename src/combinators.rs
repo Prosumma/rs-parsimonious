@@ -147,6 +147,45 @@ pub fn string<'a, E, S: AsRef<str> + Clone>(
     }
 }
 
+pub fn irrefutable_string<'a, E, S: AsRef<str> + Clone>(
+    s: S,
+    case_insensitive: bool,
+    after: usize,
+) -> impl Parser<&'a str, &'a str, E> {
+    move |input: &'a str| {
+        let s = s.as_ref();
+        if after >= s.len() {
+            parse(input, string(s, case_insensitive))
+        } else {
+            if input.starts_with(s) {
+                ok(&input[s.len()..], &input[..s.len()])
+            } else {
+                let mut chars_s = s.chars();
+                let mut chars_input = input.char_indices();
+                loop {
+                    match (chars_s.next(), chars_input.next()) {
+                        (None, _) => return ok(chars_input.as_str(), &input[..s.len()]),
+                        (_, None) => return err(chars_input.as_str(), EOF),
+                        (Some(s_c), Some((ix, input_c))) => {
+                            let matched = if case_insensitive {
+                                s_c.to_ascii_lowercase() == input_c.to_ascii_lowercase()
+                            } else {
+                                s_c == input_c
+                            };
+                            if !matched {
+                                let mut err = ParseError::new(chars_input.as_str(), NoMatch);
+                                err.irrefutable = ix >= after;
+                                err.message = Some(format!("Unexpected character: {}.", input_c));
+                                return Err(err);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub fn one_of_str<'a, E, S: AsRef<str> + Clone>(
     s: S,
     case_insensitive: bool,
@@ -293,5 +332,20 @@ mod test {
         let success = result.unwrap();
         assert_eq!(success.output, "Mises");
         assert_eq!(success.input, "");
+    }
+
+    #[test]
+    fn test_irrefutable_string() {
+        let input1 = "noll";
+        let input2 = "zulk";
+        let parser = irrefutable_string("null", false, 1);
+
+        let mut result: ParseResult<&str, &str> = parse(input1, parser.clone());
+        let mut err = result.unwrap_err();
+        assert!(err.irrefutable);
+
+        result = parse(input2, parser);
+        err = result.unwrap_err();
+        assert!(!err.irrefutable);
     }
 }
