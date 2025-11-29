@@ -104,7 +104,7 @@ pub fn frac<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, Vec<char>, E> 
 pub fn exponent<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, Vec<char>, E> {
     concat!(
         char('e', true).to_vec(),
-        or(one_of_str("+-", false).to_vec(), just_lazy(Vec::new)),
+        one_of_str("+-", false).maybe(),
         digit.many1()
     )
     .parse(input)
