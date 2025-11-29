@@ -33,7 +33,7 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
         I: Clone,
     {
         move |input: I| match self.parse(input.clone()) {
-            Ok(_) => err(input, NoMatch),
+            Ok(fail) => err(fail.input, NoMatch),
             Err(_) => ok(input, ()),
         }
     }
@@ -59,6 +59,7 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
                         result.push(success.output);
                         input = success.input;
                     }
+                    Err(err) if err.irrefutable => return Err(err),
                     Err(_) => break,
                 }
             }
@@ -73,6 +74,7 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
         move |input: I| {
             let mut result = Vec::new();
             match self.clone().parse(input.clone()) {
+                Err(err) if err.irrefutable => return Err(err),
                 /*
                  * Why do we do this? Because this is `many`,
                  * so it cannot fail. We match 0 or more.
@@ -272,7 +274,7 @@ mod tests {
     }
 
     #[test]
-    fn test_irrefutable_at() {
+    fn test_irrefutable_after() {
         let input1 = "nolk";
         let input2 = "zulk";
         let parser = string("null", false).irrefutable_after(1);

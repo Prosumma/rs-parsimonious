@@ -5,7 +5,7 @@ pub fn next_char_slice(input: &str) -> &str {
     chars.as_str()
 }
 
-pub trait ExtStr {
+pub(crate) trait ExtStr {
     fn char_offset_from<'a>(&'a self, other: &'a str) -> usize;
 }
 
