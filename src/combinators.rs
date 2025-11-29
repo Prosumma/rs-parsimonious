@@ -79,7 +79,7 @@ pub fn tuple<I, F, S, E>(
 }
 
 pub fn satisfy<'a, T: Clone + 'a, E>(
-    mut test: impl FnMut(&'a T) -> bool + Clone,
+    mut test: impl FnMut(&T) -> bool + Clone,
 ) -> impl Parser<&'a [T], T, E> {
     move |input: &'a [T]| {
         if let Some(t) = input.get(0) {
