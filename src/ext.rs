@@ -27,6 +27,15 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
             ok(input, result.output)
         }
     }
+    fn not(mut self) -> impl Parser<I, (), E>
+    where
+        I: Clone,
+    {
+        move |input: I| match self.parse(input.clone()) {
+            Ok(_) => err(input, NoMatch),
+            Err(_) => ok(input, ()),
+        }
+    }
     fn to_vec(self) -> impl Parser<I, Vec<O>, E> {
         self.map(|o| vec![o])
     }
@@ -119,6 +128,24 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
         self.followed_by(follower)
             .irrefutable()
             .preceded_by(preceder)
+    }
+    fn err_message<S: ToString + Clone>(
+        mut self,
+        message: S,
+        overwrite: bool,
+    ) -> impl Parser<I, O, E>
+    where
+        I: Clone,
+    {
+        move |input: I| match self.parse(input.clone()) {
+            ok @ Ok(_) => ok,
+            Err(mut err) => {
+                if overwrite || err.message.is_none() {
+                    err.message = Some(message.to_string())
+                }
+                Err(err)
+            }
+        }
     }
 }
 

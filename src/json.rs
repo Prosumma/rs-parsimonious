@@ -129,6 +129,7 @@ pub fn json_bool<'a, E>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
 
 pub fn json_null<'a, E>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
     irrefutable_string("null", false, 1)
+        .err_message("Expected keyword 'null'.", true)
         .map(|_| JSON::Null)
         .parse(input)
 }

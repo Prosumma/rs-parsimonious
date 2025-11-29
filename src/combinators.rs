@@ -3,6 +3,23 @@ use crate::result::*;
 use crate::util::*;
 use std::collections::HashSet;
 
+pub fn item<'a, I: Clone + 'a, E>(input: &'a [I]) -> ParseResult<&'a [I], I, E> {
+    if let Some(i) = input.get(0) {
+        ok(&input[1..], i.clone())
+    } else {
+        err(input, EOF)
+    }
+}
+
+pub fn item_str<'a, E>(input: &'a str) -> ParseResult<&'a str, char, E> {
+    let mut chars = input.chars();
+    if let Some(c) = chars.next() {
+        ok(chars.as_str(), c)
+    } else {
+        err(input, EOF)
+    }
+}
+
 pub fn cond<I, O, E>(
     cond: bool,
     mut first: impl Parser<I, O, E>,
@@ -338,11 +355,13 @@ mod test {
     fn test_irrefutable_string() {
         let input1 = "noll";
         let input2 = "zulk";
-        let parser = irrefutable_string("null", false, 1);
+        let parser =
+            irrefutable_string("null", false, 1).err_message("Expected keyword 'null'", true);
 
         let mut result: ParseResult<&str, &str> = parse(input1, parser.clone());
         let mut err = result.unwrap_err();
         assert!(err.irrefutable);
+        assert_eq!(err.message, Some("Expected keyword 'null'".to_string()));
 
         result = parse(input2, parser);
         err = result.unwrap_err();
