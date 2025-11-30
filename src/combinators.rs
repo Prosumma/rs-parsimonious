@@ -28,6 +28,39 @@ pub fn item_str<'a, E>(input: &'a str) -> ParseResult<&'a str, char, E> {
     }
 }
 
+/// This handles a peculiarity of Rust's
+/// type system. Imagine we are creating
+/// a combinator to handle whitespace, which
+/// may be required or optional. A naive
+/// implementation looks like this:
+///
+/// ```rust,compile_fail
+/// fn whitespaced(self, required: bool) -> impl Parser<&'a str, O, E> {
+///     if required {
+///         self.surrounded_by(whitespace.many1())
+///     } else {
+///         self.surrounded_by(whitespace.many())
+///     }
+/// }
+/// ```
+///
+/// So, if whitespace must be present, we return one parser
+/// and if it must not, we return another.
+///
+/// But this won't compile. The reason is that the return type
+/// of these combinators is `impl Parser<&'a str, O, E>`. Due
+/// to monomorphization, each of these is actually a _different
+/// type_, so compilation fails.
+///
+/// `cond` solves this problem by creating a new parser which
+/// returns a single type, and running the other parsers within
+/// based on the condition.
+///
+/// ```rust,ignore
+/// fn whitespaced(self, required: bool) -> impl Parser<&'a str, O, E> {
+///     self.surrounded_by(cond(required, whitespace.many1(), whitespace.many()))
+/// }
+/// ```
 pub fn cond<I, O, E>(
     cond: bool,
     mut first: impl Parser<I, O, E>,
@@ -42,6 +75,18 @@ pub fn cond<I, O, E>(
     }
 }
 
+/// One of the most common combinators.
+///
+/// Attempts to match `first` and if that fails
+/// it attempts to match `second`. If that fails
+/// it returns an error.
+///
+/// If `first` throws an irrefutable error, then
+/// `or` returns this immediately. Irrefutable errors
+/// cannot be caught.
+///
+/// If you need to alternate on more than one
+/// parser, use the `or!` macro.
 pub fn or<I, O, E>(
     mut first: impl Parser<I, O, E>,
     mut second: impl Parser<I, O, E>,
@@ -74,6 +119,26 @@ pub fn tuple<I, F, S, E>(
         ok(
             second_success.input,
             (first_success.output, second_success.output),
+        )
+    }
+}
+
+pub fn triple<I, F, M, L, E>(
+    mut first: impl Parser<I, F, E>,
+    mut middle: impl Parser<I, M, E>,
+    mut last: impl Parser<I, L, E>,
+) -> impl Parser<I, (F, M, L), E> {
+    move |input: I| {
+        let first_success = first.parse(input)?;
+        let middle_success = middle.parse(first_success.input)?;
+        let last_success = last.parse(middle_success.input)?;
+        ok(
+            last_success.input,
+            (
+                first_success.output,
+                middle_success.output,
+                last_success.output,
+            ),
         )
     }
 }
@@ -142,6 +207,7 @@ pub fn ch<'a, E>(mut test: impl FnMut(char) -> bool + Clone) -> impl Parser<&'a 
     char(move |c: char, _: bool| test(c), false)
 }
 
+/// Matches a string, optionally with case insensitivity.
 pub fn string<'a, E, S: AsRef<str> + Clone>(
     s: S,
     case_insensitive: bool,
@@ -172,12 +238,14 @@ pub fn one_of_str<'a, E, S: AsRef<str> + Clone>(
     s: S,
     case_insensitive: bool,
 ) -> impl Parser<&'a str, char, E> {
+    let mut chars: HashSet<char> = s.as_ref().chars().collect();
+    if case_insensitive {
+        chars = chars.into_iter().map(|c| c.to_ascii_lowercase()).collect();
+    }
     move |input: &'a str| {
-        let mut chars: HashSet<char> = s.as_ref().chars().collect();
         if let Some(c) = input.chars().next() {
             let mut cc = c;
             if case_insensitive {
-                chars = chars.into_iter().map(|c| c.to_ascii_lowercase()).collect();
                 cc = c.to_ascii_lowercase();
             }
             if chars.contains(&cc) {
@@ -191,10 +259,12 @@ pub fn one_of_str<'a, E, S: AsRef<str> + Clone>(
     }
 }
 
+/// Matches a single character of whitespace.
 pub fn whitespace<'a, E>(input: &'a str) -> ParseResult<&'a str, char, E> {
     ch(char::is_whitespace).parse(input)
 }
 
+/// Matches EOF when the input type is a slice of some arbitrary type.
 pub fn end<'a, Elem, E>(input: &'a [Elem]) -> ParseResult<&'a [Elem], (), E> {
     if input.len() == 0 {
         ok(input, ())
@@ -203,6 +273,7 @@ pub fn end<'a, Elem, E>(input: &'a [Elem]) -> ParseResult<&'a [Elem], (), E> {
     }
 }
 
+/// Matches EOF when the input type is a string slice, the most common case.
 pub fn end_str<'a, E>(input: &'a str) -> ParseResult<&'a str, (), E> {
     if input.len() == 0 {
         ok(input, ())
@@ -235,6 +306,26 @@ macro_rules! concat {
     }
 }
 
+/// A parser which always fails, propagating the
+/// provided error.
+///
+/// This is best used with alternation and with the
+/// more convenient `fail!` macro.
+///
+/// ```rust,ignore
+/// or!(parser1, parser2, fail!(NoMatch, message = "It failed!"))
+/// ```
+///
+/// However, in most cases it's easier to just use the `err_message`
+/// combinator:
+///
+/// ```rust,ignore
+/// or!(parser1, parser2).err_message("It failed!")
+/// ```
+///
+/// This is not exactly equivalent. The former creates a new error
+/// while the latter adds a message to the current error, but more
+/// often than not the latter is what you want.
 pub fn fail<I, O, E: Clone, S: ToString + Clone>(
     reason: ParseErrorReason,
     message: Option<S>,

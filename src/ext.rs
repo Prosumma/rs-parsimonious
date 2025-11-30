@@ -46,6 +46,9 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
     {
         or(self.to_vec(), just_lazy(Vec::new))
     }
+    /// Matches 0 or more of `self` until an error
+    /// or EOF occurs. However, irrefutable errors
+    /// are still propagated (as always).
     fn many(mut self) -> impl Parser<I, Vec<O>, E>
     where
         I: Clone,
@@ -104,6 +107,19 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
     {
         concat(self.clone().to_vec(), (self.preceded_by(sep)).many())
     }
+    /// Makes a parser _irrefutable_.
+    ///
+    /// An irrefutable parser is one whose errors cannot be
+    /// caught. Combinators like `or` and `.many()`, which
+    /// usually proceed in the case of errors, will still
+    /// propagate the error.
+    ///
+    /// Why? Consider JSON. Imagine we've parsed an opening
+    /// brace, `[`. Once we've done so, this **must** be an
+    /// array. There is no other possibility and trying them
+    /// makes no sense. We're "committed". So if parsing fails,
+    /// it throws an irrefutable error so that parsing can
+    /// simply halt.
     fn irrefutable(mut self) -> impl Parser<I, O, E> {
         move |input: I| match self.parse(input) {
             ok @ Ok(_) => ok,
@@ -113,12 +129,46 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
             }
         }
     }
+    /// Returns `self` when preceded by the given parser, whose
+    /// value must be matched but which is then discarded.
+    ///
+    /// Imagine a grammar like `TAG 347`, in which the keyword `TAG`
+    /// is followed by a number. The keyword must be present, but we
+    /// are interested only in the number itself:
+    ///
+    /// ```rust,ignore
+    /// one_of_str("0123456789", false)
+    ///     .many1()
+    ///     .to_string()
+    ///     .followed_by(whitespace.many1())
+    ///     .preceded_by(string("TAG"))
+    /// ```
+    ///
+    /// When matching `TAG 347`, this gives us the string "347".
     fn preceded_by<P>(mut self, mut preceder: impl Parser<I, P, E>) -> impl Parser<I, O, E> {
         move |input: I| {
             let success = preceder.parse(input)?;
             self.parse(success.input)
         }
     }
+    /// Returns `self` followed by the given parser, whose
+    /// value must be matched but which is then discarded.
+    ///
+    /// Imagine a grammar like `TAG 347`, in which the keyword `TAG`
+    /// is followed by a number. The keyword must be present, but we
+    /// are interested only in the number itself. We must also handle
+    /// the whitespace after the keyword `TAG`, but we are not
+    /// interested in its value. `followed_by` works beautifully here:
+    ///
+    /// ```rust,ignore
+    /// one_of_str("0123456789", false)
+    ///     .many1()
+    ///     .to_string()
+    ///     .followed_by(whitespace.many1())
+    ///     .preceded_by(string("TAG"))
+    /// ```
+    ///
+    /// When matching `TAG 347`, this gives us the string "347".
     fn followed_by<F>(mut self, mut follower: impl Parser<I, F, E>) -> impl Parser<I, O, E> {
         move |input: I| {
             let success = self.parse(input)?;
@@ -129,6 +179,12 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
     fn surrounded_by<S>(self, surrounder: impl Parser<I, S, E>) -> impl Parser<I, O, E> {
         self.preceded_by(surrounder.clone()).followed_by(surrounder)
     }
+    /// Returns `self` delimited by `preceder` and `follower`.
+    ///
+    /// Once `preceder` has been matched, the rest of the match
+    /// becomes irrefutable. If you don't want this, it's easy
+    /// enough to use `followed_by` and `preceded_by` yourself,
+    /// but irrefutable is the most common case.
     fn delimited_by<P, F>(
         self,
         preceder: impl Parser<I, P, E>,
@@ -138,6 +194,8 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
             .irrefutable()
             .preceded_by(preceder)
     }
+    /// Attaches an error message to any error which is
+    /// thrown, optionally overwriting an existing message.
     fn err_message<S: ToString + Clone>(
         mut self,
         message: S,
@@ -161,6 +219,15 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
 impl<I, O, E, P> ExtParser<I, O, E> for P where P: Parser<I, O, E> {}
 
 pub trait StrInParser<'a, O, E = ()>: Parser<&'a str, O, E> {
+    /// This makes any error irrefutable after a certain number of `char`s.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// string("null").irrefutable_after(1)
+    /// ```
+    ///
+    /// This means that after `'n'` is matched, the matched string must be `null`
+    /// or an irrefutable error occurs, which cannot be caught.
     fn irrefutable_after(mut self, after: usize) -> impl Parser<&'a str, O, E> {
         move |input: &'a str| match self.parse(input) {
             ok @ Ok(_) => ok,
@@ -173,11 +240,7 @@ pub trait StrInParser<'a, O, E = ()>: Parser<&'a str, O, E> {
         }
     }
     fn whitespaced(self, required: bool) -> impl Parser<&'a str, O, E> {
-        cond(
-            required,
-            self.clone().surrounded_by(whitespace.many1()),
-            self.surrounded_by(whitespace.many()),
-        )
+        self.surrounded_by(cond(required, whitespace.many1(), whitespace.many()))
     }
     fn bracketed(self) -> impl Parser<&'a str, O, E> {
         self.delimited_by('[', ']')
