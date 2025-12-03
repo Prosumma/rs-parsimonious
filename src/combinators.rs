@@ -398,6 +398,19 @@ mod test {
     }
 
     #[test]
+    fn test_or_irrefutable() {
+        let input = "[a,]";
+        let choices = or('a', 'b');
+        let parser = or(
+            choices.clone().bracketed(),
+            fail!(NoMatch, message = "We should never get here."),
+        );
+        let result: ParseResult<&str, char> = parse(input, parser);
+        let err = result.unwrap_err();
+        assert!(err.irrefutable)
+    }
+
+    #[test]
     fn test_string() {
         let input = "Mises";
         let parser = string("Mises", false);
