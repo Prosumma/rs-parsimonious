@@ -402,4 +402,16 @@ mod tests {
         err = result.unwrap_err();
         assert!(!err.irrefutable);
     }
+
+    #[test]
+    fn test_many_irrefutable() {
+        let input = "[a][e][i,]";
+        let c = one_of_str("aeiou", false);
+        let parser = c.bracketed();
+
+        let result: ParseResult<&str, Vec<char>> = parse(input, parser.many());
+        let err = result.unwrap_err();
+        assert!(err.irrefutable);
+        assert_eq!(err.input, ",]");
+    }
 }
