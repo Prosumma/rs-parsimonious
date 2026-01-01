@@ -46,6 +46,58 @@ pub trait ExtParser<I, O, E = ()>: Parser<I, O, E> {
     {
         or(self.to_vec(), just_lazy(Vec::new))
     }
+    fn up_to(mut self, limit: usize) -> impl Parser<I, Vec<O>, E>
+    where
+        I: Clone,
+    {
+        move |input: I| {
+            let mut input = input;
+            let mut result = Vec::new();
+            while result.len() < limit {
+                match self.parse(input.clone()) {
+                    Ok(success) => {
+                        result.push(success.output);
+                        input = success.input;
+                    }
+                    Err(err) if err.irrefutable => return Err(err),
+                    Err(_) => break,
+                }
+            }
+            ok(input, result)
+        }
+    }
+    /// Matches exactly `count` instances of `self`.
+    fn count(mut self, count: usize) -> impl Parser<I, Vec<O>, E>
+    where
+        I: Clone,
+    {
+        move |input: I| {
+            let mut input = input;
+            let mut result = Vec::new();
+            while result.len() < count {
+                match self.parse(input.clone()) {
+                    Ok(success) => {
+                        result.push(success.output);
+                        input = success.input;
+                    }
+                    Err(err) => {
+                        return Err(err.message(format!(
+                            "Expected to match {} times but got {}.",
+                            count,
+                            result.len()
+                        )))
+                    }
+                }
+            }
+            ok(input, result)
+        }
+    }
+    fn at_least(self, count: usize) -> impl Parser<I, Vec<O>, E>
+    where
+        I: Clone,
+    {
+        concat(self.clone().count(count), self.many())
+    }
     /// Matches 0 or more of `self` until an error
     /// or EOF occurs. However, irrefutable errors
     /// are still propagated (as always).
