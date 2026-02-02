@@ -1,0 +1,67 @@
+{
+  "test_suite_purpose": "This JSON file is designed to test the robustness of a JSON parser by including all valid JSON data types and various formatting edge cases.",
+  "metadata": {
+    "schema_version": "1.0",
+    "parser_tester": true,
+    "notes": null
+  },
+  "strings": {
+    "simple_string": "Hello, World!",
+    "string_with_escapes": "This string includes special characters: newline (\\n), tab (\\t), carriage return (\\r), backspace (\\b), form feed (\\f), double quote (\\\" test \\\"), and backslash (\\\\).",
+    "unicode_string": "This string tests Unicode characters: \\u00A9 (Copyright) and \\uD83D\\uDE00 (Grinning Face emoji).",
+    "empty_string": ""
+  },
+  "numbers": {
+    "integer_positive": 42,
+    "integer_negative": -100,
+    "zero": 0,
+    "float_simple": 3.14159,
+    "float_negative": -0.5,
+    "float_leading_zero": 0.123,
+    "float_trailing_zero": 1.0,
+    "scientific_notation_positive_exponent": 1.2e4,
+    "scientific_notation_negative_exponent": 9.87e-3,
+    "large_integer": 9223372036854775807,
+    "zero_with_negative_sign": -0
+  },
+  "booleans_and_null": {
+    "boolean_true": true,
+    "boolean_false": false,
+    "null_value": null
+  },
+  "arrays": {
+    "empty_array": [],
+    "array_of_strings": ["apple", "banana", "cherry"],
+    "array_of_numbers": [1, 2, 3.5, 4, 5],
+    "array_of_booleans": [true, false, true],
+    "array_of_mixed_types": ["mixed", 123, true, null, {}],
+    "nested_array": [[1, 2], [3, 4, 5], [6]]
+  },
+  "objects": {
+    "empty_object": {},
+    "nested_object": {
+      "level1_key": "value1",
+      "level1_object": {
+        "level2_key": "value2",
+        "level2_array": [
+          { "id": 1, "status": "active" },
+          { "id": 2, "status": "inactive" }
+        ]
+      }
+    },
+    "object_with_array_of_objects": {
+      "users": [
+        {
+          "name": "Alice",
+          "age": 30,
+          "active": true
+        },
+        {
+          "name": "Bob",
+          "age": 25,
+          "active": false
+        }
+      ]
+    }
+  }
+}

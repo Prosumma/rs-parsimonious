@@ -7,6 +7,7 @@ use crate::peek;
 use crate::result::*;
 use crate::void;
 use std::collections::HashMap;
+use std::ops::Index;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum JSON {
@@ -18,6 +19,28 @@ pub enum JSON {
     Null,
 }
 
+impl TryFrom<JSON> for String {
+    type Error = &'static str;
+
+    fn try_from(json: JSON) -> Result<String, Self::Error> {
+        match json {
+            JSON::String(s) => Ok(s),
+            _ => Err("Not a string")
+        }
+    }
+}
+
+impl Index<&str> for JSON {
+    type Output = JSON;
+
+    fn index(&self, index: &str) -> &Self::Output {
+        match self {
+            JSON::Object(objects) => &objects[index],
+            _ => &JSON::Null,
+        }
+    }
+}
+
 fn unquoted_string<'a, E>(input: &'a str) -> ParseResult<&'a str, String, E> {
     let mut output = String::new();
     let mut escaping = false;
@@ -27,6 +50,10 @@ fn unquoted_string<'a, E>(input: &'a str) -> ParseResult<&'a str, String, E> {
     loop {
         if let Some((ix, c)) = chars.next() {
             last_idx = ix;
+            if c <= '\u{001F}' {
+                return err(chars.as_str(), NoMatch)
+                    .err_message("Invalid control character in string.");
+            }
             if let Some(ref mut u) = unicode {
                 if c.is_ascii_hexdigit() {
                     u.push(c);
