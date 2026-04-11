@@ -25,7 +25,7 @@ impl TryFrom<JSON> for String {
     fn try_from(json: JSON) -> Result<String, Self::Error> {
         match json {
             JSON::String(s) => Ok(s),
-            _ => Err("Not a string")
+            _ => Err("Not a string"),
         }
     }
 }
@@ -138,7 +138,7 @@ pub fn exponent<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, Vec<char>,
 }
 
 pub fn json_number<'a, E: Clone>(input: &'a str) -> ParseResult<&'a str, JSON, E> {
-    let term = peek!(',', ']', '}', end_str).preceded_by(whitespace.many());
+    let term = peek!(',', ']', '}', end).preceded_by(whitespace.many());
     concat!('-'.maybe(), integer, frac.vec_maybe(), exponent.vec_maybe())
         .followed_by(term)
         .irrefutable_after(1)

@@ -264,18 +264,24 @@ pub fn whitespace<'a, E>(input: &'a str) -> ParseResult<&'a str, char, E> {
     ch(char::is_whitespace).parse(input)
 }
 
-/// Matches EOF when the input type is a slice of some arbitrary type.
-pub fn end<'a, Elem, E>(input: &'a [Elem]) -> ParseResult<&'a [Elem], (), E> {
-    if input.len() == 0 {
-        ok(input, ())
-    } else {
-        err(input, NoMatch)
+pub trait Endable {
+    fn at_end(&self) -> bool;
+}
+
+impl Endable for &str {
+    fn at_end(&self) -> bool {
+        self.len() == 0
     }
 }
 
-/// Matches EOF when the input type is a string slice, the most common case.
-pub fn end_str<'a, E>(input: &'a str) -> ParseResult<&'a str, (), E> {
-    if input.len() == 0 {
+impl<T> Endable for &[T] {
+    fn at_end(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+pub fn end<I: Endable, E>(input: I) -> ParseResult<I, (), E> {
+    if input.at_end() {
         ok(input, ())
     } else {
         err(input, NoMatch)

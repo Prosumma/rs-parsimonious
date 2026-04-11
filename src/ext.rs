@@ -310,7 +310,7 @@ pub trait StrInParser<'a, O, E = ()>: Parser<&'a str, O, E> {
         self.irrefutable().surrounded_by('\'')
     }
     fn end(self) -> impl Parser<&'a str, O, E> {
-        self.followed_by(end_str)
+        self.followed_by(end)
     }
 }
 

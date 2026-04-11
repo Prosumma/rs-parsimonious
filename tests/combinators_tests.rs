@@ -1,5 +1,5 @@
-use parsimonious::*;
 use parsimonious::ExtParser;
+use parsimonious::*;
 
 #[test]
 fn test_just_and_just_lazy() {
@@ -90,7 +90,7 @@ fn test_whitespace_concat_end() {
     assert_eq!(success.output, vec!['a', 'b']);
     assert_eq!(success.input, "");
 
-    let result: ParseResult<&str, ()> = end_str("remaining");
+    let result: ParseResult<&str, ()> = end("remaining");
     assert_eq!(result.unwrap_err().reason, NoMatch);
 
     let result: ParseResult<&[u8], ()> = end(&[1u8]);
