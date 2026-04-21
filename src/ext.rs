@@ -51,6 +51,30 @@ pub fn concat<I, O>(
     }
 }
 
+#[macro_export]
+macro_rules! concat {
+    ($parser:expr) => { $parser };
+    ($parser:expr, $($rest:expr),+ $(,)?) => {
+        concat($parser, $($rest),+)
+    }
+}
+
+pub fn or<I, O>(mut lhs: impl Parser<I, O>, mut rhs: impl Parser<I, O>) -> impl Parser<I, O> {
+    move |input: I| match lhs.parse(input) {
+        ok @ Ok(_) => ok,
+        Err(err) if err.irrefutable => Err(err),
+        Err(err) => rhs.parse(err.input),
+    }
+}
+
+#[macro_export]
+macro_rules! or {
+    ($parser:expr) => { $parser };
+    ($parser:expr, $($rest:expr),+ $(,)?) => {
+        or($parser, $($rest),+)
+    }
+}
+
 pub fn cond<I, O>(
     condition: bool,
     mut true_parser: impl Parser<I, O>,
