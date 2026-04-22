@@ -55,7 +55,7 @@ pub fn concat<I, O>(
 macro_rules! concat {
     ($parser:expr) => { $parser };
     ($parser:expr, $($rest:expr),+ $(,)?) => {
-        concat($parser, $($rest),+)
+        concat($parser, concat!($($rest),+))
     }
 }
 
@@ -71,7 +71,7 @@ pub fn or<I, O>(mut lhs: impl Parser<I, O>, mut rhs: impl Parser<I, O>) -> impl 
 macro_rules! or {
     ($parser:expr) => { $parser };
     ($parser:expr, $($rest:expr),+ $(,)?) => {
-        or($parser, $($rest),+)
+        or($parser, or!($($rest),+))
     }
 }
 
