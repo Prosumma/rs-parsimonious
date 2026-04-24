@@ -90,6 +90,26 @@ macro_rules! concat {
     }
 }
 
+pub fn cons<I, O>(
+    mut first: impl Parser<I, O>,
+    mut rest: impl Parser<I, Vec<O>>,
+) -> impl Parser<I, Vec<O>> {
+    move |input: I| {
+        let output = first.parse(input)?;
+        let mut rest_output = rest.parse(output.input)?;
+        rest_output.output.insert(0, output.output);
+        Ok(rest_output)
+    }
+}
+
+#[macro_export]
+macro_rules! cons {
+  ($parser:expr) => { $parser };
+  ($parser:expr, $($rest:expr),+ $(,)?) => {
+    $crate::ext::cons($parser, $crate::cons!($($rest),+))
+  }
+}
+
 pub fn or<I, O>(mut lhs: impl Parser<I, O>, mut rhs: impl Parser<I, O>) -> impl Parser<I, O> {
     move |input: I| match lhs.parse(input) {
         ok @ Ok(_) => ok,

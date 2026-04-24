@@ -56,6 +56,11 @@ pub fn eq_istr<'a, S: ToString>(model: S) -> impl Parser<&'a str, &'a str> {
     test_str(model, |input: &'a str, ch: char| eq_ichar(ch).parse(input))
 }
 
+pub fn one_of<'a, S: ToString>(choices: S) -> impl Parser<&'a str, char> {
+    let choices = choices.to_string();
+    satisfy_char(move |c: char| choices.contains(c))
+}
+
 pub fn whitespace<'a>(input: &'a str) -> ParseResult<&'a str, char> {
     test_char(input, char::is_whitespace)
 }
@@ -99,6 +104,8 @@ pub trait CharVecParser<I>: Parser<I, Vec<char>> {
         self.map(|chars| chars.into_iter().collect())
     }
 }
+
+impl<I, P> CharVecParser<I> for P where P: Parser<I, Vec<char>> {}
 
 #[cfg(test)]
 mod test {

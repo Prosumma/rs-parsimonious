@@ -1,6 +1,7 @@
 mod clone;
 mod ext;
 mod flatten;
+mod json;
 mod parser;
 mod string;
 
