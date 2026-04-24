@@ -1,6 +1,5 @@
+use crate::err;
 use crate::parser::*;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 pub trait ExtParser<I, O>: Parser<I, O> {
     fn map<N>(mut self, mut f: impl FnMut(O) -> N) -> impl Parser<I, N> {
@@ -87,7 +86,7 @@ pub fn concat<I, O>(
 macro_rules! concat {
     ($parser:expr) => { $parser };
     ($parser:expr, $($rest:expr),+ $(,)?) => {
-        crate::ext::concat($parser, concat!($($rest),+))
+        $crate::ext::concat($parser, concat!($($rest),+))
     }
 }
 
@@ -103,7 +102,7 @@ pub fn or<I, O>(mut lhs: impl Parser<I, O>, mut rhs: impl Parser<I, O>) -> impl 
 macro_rules! or {
     ($parser:expr) => { $parser };
     ($parser:expr, $($rest:expr),+ $(,)?) => {
-        crate::ext::or($parser, or!($($rest),+))
+        $crate::ext::or($parser, or!($($rest),+))
     }
 }
 
@@ -141,6 +140,6 @@ pub fn end<I: Finite>(input: I) -> ParseResult<I, ()> {
     if input.at_end() {
         ok(input, ())
     } else {
-        err(input, NoMatch)
+        err!(input, NoMatch)
     }
 }

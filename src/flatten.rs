@@ -8,3 +8,10 @@ pub trait FlattenParser<I, O>: Parser<I, Vec<Vec<O>>> {
 }
 
 impl<I, O, P> FlattenParser<I, O> for P where P: Parser<I, Vec<Vec<O>>> {}
+
+#[macro_export]
+macro_rules! join {
+  ($parser:expr, $($rest:expr),+ $(,)?) => {
+    $crate::concat!($parser, $($rest),+).flatten()
+  }
+}

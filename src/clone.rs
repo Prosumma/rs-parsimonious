@@ -1,5 +1,7 @@
+use crate::concat;
 use crate::ext::*;
 use crate::flatten::*;
+use crate::join;
 use crate::parser::{ParseResult, Parser};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -9,7 +11,7 @@ pub trait CloneParser<I, O>: Parser<I, O> + Clone {
     where
         I: Clone,
     {
-        concat(self.clone().to_vec(), self.many()).flatten()
+        join!(self.clone().to_vec(), self.many())
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::err;
 use crate::ext::*;
 use crate::parser::*;
 
@@ -10,10 +11,10 @@ pub fn test_char<'a>(
         if test(ch) {
             ok(chars.as_str(), ch)
         } else {
-            err(input, NoMatch)
+            err!(input, NoMatch)
         }
     } else {
-        err(input, EOF)
+        err!(input, EOF)
     }
 }
 
@@ -90,6 +91,12 @@ pub trait StrInParser<'a, O>: Parser<&'a str, O> {
 impl<'a> Parser<&'a str, char> for char {
     fn parse(&mut self, input: &'a str) -> ParseResult<&'a str, char> {
         test_char(input, move |ch: char| *self == ch)
+    }
+}
+
+pub trait CharVecParser<I>: Parser<I, Vec<char>> {
+    fn to_string(self) -> impl Parser<I, String> {
+        self.map(|chars| chars.into_iter().collect())
     }
 }
 

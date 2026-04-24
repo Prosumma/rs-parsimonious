@@ -28,12 +28,22 @@ pub fn ok<I, O>(input: I, output: O) -> ParseResult<I, O> {
     Ok(ParseOutput { input, output })
 }
 
-pub fn err<I, O>(input: I, reason: error::Reason) -> ParseResult<I, O> {
-    Err(ParseError {
-        input,
-        reason,
-        irrefutable: false,
-    })
+#[macro_export]
+macro_rules! err {
+    ($input:expr, $reason:expr) => {
+        ::core::result::Result::Err($crate::parser::ParseError {
+            input: $input,
+            reason: $reason,
+            irrefutable: false,
+        })
+    };
+    ($input:expr, $reason:expr, irrefutable) => {
+        ::core::result::Result::Err($crate::parser::ParseError {
+            input: $input,
+            reason: $reason,
+            irrefutable: true,
+        })
+    };
 }
 
 pub trait Parser<I, O>: Sized {
@@ -46,5 +56,18 @@ where
 {
     fn parse(&mut self, input: I) -> ParseResult<I, O> {
         self(input)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_err() {
+        let input = "Kimmy";
+        let res: ParseResult<&str, char> = err!(input, NoMatch, irrefutable);
+        let err = res.unwrap_err();
+        assert!(err.irrefutable)
     }
 }
