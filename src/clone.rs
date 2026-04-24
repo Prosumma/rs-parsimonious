@@ -23,3 +23,19 @@ where
 }
 
 impl<I, O, P> CloneParser<I, O> for Rc<RefCell<P>> where P: Parser<I, O> {}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::string::*;
+
+    #[test]
+    fn test_many1() {
+        let parser = eq_istr("BOB");
+        let parser = RefCell::new(parser);
+        let mut parser = Rc::new(parser).many1();
+        let res = parser.parse("bobbobbob");
+        assert!(res.is_ok());
+        assert_eq!(res.unwrap().output, vec!["bob", "bob", "bob"])
+    }
+}
