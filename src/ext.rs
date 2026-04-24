@@ -54,6 +54,9 @@ pub trait ExtParser<I, O>: Parser<I, O> {
     ) -> impl Parser<I, O> {
         self.preceded_by(preceder).followed_by(follower)
     }
+    fn maybe(self) -> impl Parser<I, Vec<O>> {
+        or(self.to_vec(), just(Vec::new))
+    }
     fn end(self) -> impl Parser<I, O>
     where
         I: Finite,
